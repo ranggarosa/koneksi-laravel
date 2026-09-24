@@ -1,0 +1,56 @@
+# Operating System
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Node & Package Managers
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-debug.log*
+
+# Environment Variables, Secrets & Credentials
+.env
+.env.*
+!.env.example
+*.local
+credentials.json
+client_secret*.json
+*.pem
+*.key
+*.cert
+
+# Google Apps Script & Clasp Authentication
+.clasprc.json
+
+# IDEs and Editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temporary & Build Outputs
+dist/
+build/
+out/
+temp/
+tmp/
+*.log
+.cache/
+
+# Spec Kit Local Machine State
+.specify/feature.json
+.specify/extensions/*/local-config.yml
