@@ -4,14 +4,22 @@
  */
 
 const authService = {
-  _userRepo: userRepository,
+  _injectedUserRepo: null,
+
+  get _userRepo() {
+    return this._injectedUserRepo || (typeof userRepository !== 'undefined' ? userRepository : null);
+  },
+  set _userRepo(repo) {
+    this._injectedUserRepo = repo;
+  },
+
   _overrideEmail: null,
 
   /**
    * Allows injecting mock repository for testing (Dependency Injection).
    */
   setUserRepository(repo) {
-    this._userRepo = repo;
+    this._injectedUserRepo = repo;
   },
 
   /**

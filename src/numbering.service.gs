@@ -4,14 +4,21 @@
  */
 
 const numberingService = {
-  _counterRepo: counterRepository,
+  _injectedCounterRepo: null,
+
+  get _counterRepo() {
+    return this._injectedCounterRepo || (typeof counterRepository !== 'undefined' ? counterRepository : null);
+  },
+  set _counterRepo(repo) {
+    this._injectedCounterRepo = repo;
+  },
 
   /**
    * Inject mock repository for unit testing (Dependency Injection).
    * @param {Object} repo
    */
   setCounterRepository(repo) {
-    this._counterRepo = repo;
+    this._injectedCounterRepo = repo;
   },
 
   /**

@@ -4,26 +4,46 @@
  */
 
 const letterService = {
-  _letterRepo: letterRepository,
-  _numberingService: numberingService,
-  _userRepo: userRepository,
-  _auditLogRepo: auditLogRepository,
-  _notificationService: null, // Initialized or injected
-  _documentService: null,     // Initialized or injected
+  _injectedLetterRepo: null,
+  _injectedNumberingService: null,
+  _injectedUserRepo: null,
+  _injectedAuditLogRepo: null,
+  _injectedNotificationService: null,
+  _injectedDocumentService: null,
 
-  setLetterRepository(repo) { this._letterRepo = repo; },
-  setNumberingService(svc) { this._numberingService = svc; },
-  setUserRepository(repo) { this._userRepo = repo; },
-  setAuditLogRepository(repo) { this._auditLogRepo = repo; },
-  setNotificationService(svc) { this._notificationService = svc; },
-  setDocumentService(svc) { this._documentService = svc; },
+  get _letterRepo() {
+    return this._injectedLetterRepo || (typeof letterRepository !== 'undefined' ? letterRepository : null);
+  },
+  set _letterRepo(repo) { this._injectedLetterRepo = repo; },
+
+  get _numberingService() {
+    return this._injectedNumberingService || (typeof numberingService !== 'undefined' ? numberingService : null);
+  },
+  set _numberingService(svc) { this._injectedNumberingService = svc; },
+
+  get _userRepo() {
+    return this._injectedUserRepo || (typeof userRepository !== 'undefined' ? userRepository : null);
+  },
+  set _userRepo(repo) { this._injectedUserRepo = repo; },
+
+  get _auditLogRepo() {
+    return this._injectedAuditLogRepo || (typeof auditLogRepository !== 'undefined' ? auditLogRepository : null);
+  },
+  set _auditLogRepo(repo) { this._injectedAuditLogRepo = repo; },
+
+  setLetterRepository(repo) { this._injectedLetterRepo = repo; },
+  setNumberingService(svc) { this._injectedNumberingService = svc; },
+  setUserRepository(repo) { this._injectedUserRepo = repo; },
+  setAuditLogRepository(repo) { this._injectedAuditLogRepo = repo; },
+  setNotificationService(svc) { this._injectedNotificationService = svc; },
+  setDocumentService(svc) { this._injectedDocumentService = svc; },
 
   _getNotificationService() {
-    return this._notificationService || (typeof notificationService !== 'undefined' ? notificationService : null);
+    return this._injectedNotificationService || (typeof notificationService !== 'undefined' ? notificationService : null);
   },
 
   _getDocumentService() {
-    return this._documentService || (typeof documentService !== 'undefined' ? documentService : null);
+    return this._injectedDocumentService || (typeof documentService !== 'undefined' ? documentService : null);
   },
 
   /**
