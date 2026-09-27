@@ -1,0 +1,272 @@
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex align-center gap-2">
+      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">← Dashboard</button>
+      <h2 class="card-title mb-0">Pengaturan Sistem & Profil</h2>
+    </div>
+  </div>
+
+  <!-- 1. Approver Signature Upload Section -->
+  <div id="section-signature-settings" class="card" style="border: 1px solid var(--border); box-shadow: none; margin-bottom: 2rem;">
+    <h3 style="font-size: 1.05rem; margin-bottom: 0.5rem; color: #1e293b;">Tanda Tangan Referensi Pejabat (Approver)</h3>
+    <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1.25rem;">
+      Tanda tangan ini akan disematkan secara otomatis pada dokumen saat Anda memilih metode <strong>Tanda Tangan Digital</strong>. Gunakan format gambar PNG transparan untuk hasil terbaik.
+    </p>
+
+    <div style="display: flex; gap: 2rem; flex-wrap: wrap; align-items: flex-start;">
+      <div style="flex: 1; min-width: 280px;">
+        <div class="form-group">
+          <label class="form-label" for="signature-file-input">Pilih Berkas Gambar Tanda Tangan (PNG/JPG)</label>
+          <input type="file" id="signature-file-input" class="form-control" accept="image/png,image/jpeg" onchange="previewSignature(event)">
+        </div>
+        <button id="btn-save-signature" class="btn btn-primary" onclick="handleSaveSignature()">
+          Simpan Tanda Tangan ke Drive
+        </button>
+      </div>
+
+      <div style="width: 220px; text-align: center; background: #f8fafc; padding: 1rem; border-radius: var(--radius-md); border: 1px dashed var(--border);">
+        <span class="text-muted" style="font-size: 0.8rem; display: block; margin-bottom: 0.5rem;">Pratinjau Tanda Tangan:</span>
+        <div style="height: 90px; display: flex; align-items: center; justify-content: center; background: white; border-radius: 4px; border: 1px solid var(--border); overflow: hidden;">
+          <img id="signature-preview-img" src="" alt="Belum Ada" style="max-height: 100%; max-width: 100%; display: none;">
+          <span id="signature-preview-placeholder" class="text-muted" style="font-size: 0.75rem;">(Belum dipilih)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Admin User Management Section -->
+  <div id="section-admin-users" style="display: none;">
+    <div class="d-flex justify-between align-center mb-4">
+      <div>
+        <h3 style="font-size: 1.05rem; margin-bottom: 0.25rem; color: #1e293b;">Manajemen Pengguna & Whitelist Akses</h3>
+        <p class="text-muted" style="font-size: 0.85rem;">Kelola daftar akun Google yang diizinkan mengakses aplikasi Koneksi.</p>
+      </div>
+      <button class="btn btn-primary" onclick="openAddUserModal()">+ Tambah Pengguna</button>
+    </div>
+
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Email Akun Google</th>
+            <th>Nama Lengkap</th>
+            <th>Peran (Role)</th>
+            <th>Tanda Tangan</th>
+            <th>Status Keaktifan</th>
+            <th class="text-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="table-users-body">
+          <!-- Populated via JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Upsert User (Admin) -->
+<div id="modal-user" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 id="modal-user-title" style="font-size: 1.1rem; font-weight: 700;">Tambah Pengguna Whitelist</h3>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-user')">✕</button>
+    </div>
+    <form onsubmit="handleSaveUser(event)">
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="user-email">Email Akun Google <span style="color:var(--danger)">*</span></label>
+          <input type="email" id="user-email" class="form-control" required placeholder="nama@gmail.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-name">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="user-name" class="form-control" required placeholder="Nama lengkap resmi">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="user-role">Peran Sistem (Role)</label>
+          <select id="user-role" class="form-control" required>
+            <option value="drafter">Drafter (Pembuat Draf Surat)</option>
+            <option value="reviewer">Reviewer (Pemeriksa / Peninjau)</option>
+            <option value="approver">Approver (Pejabat Penandatangan)</option>
+            <option value="admin">Administrator (Pengelola Sistem)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label style="cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-weight: 600;">
+            <input type="checkbox" id="user-is-active" checked>
+            <span>Akun Aktif (Dapat mengakses aplikasi)</span>
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('modal-user')">Batal</button>
+        <button type="submit" id="btn-save-user-submit" class="btn btn-primary">Simpan Pengguna</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  let loadedUsersList = [];
+
+  function initSettingsPage() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    // Show Admin Section if role === admin
+    const adminSec = document.getElementById('section-admin-users');
+    if (user.role === 'admin') {
+      adminSec.style.display = 'block';
+      loadUsersTable();
+    } else {
+      adminSec.style.display = 'none';
+    }
+
+    // Show Signature Section if approver or admin
+    const sigSec = document.getElementById('section-signature-settings');
+    sigSec.style.display = (user.role === 'approver' || user.role === 'admin') ? 'block' : 'none';
+  }
+
+  function loadUsersTable() {
+    callServer('listUsers')
+      .then(users => {
+        loadedUsersList = users || [];
+        renderUsersTable(loadedUsersList);
+      })
+      .catch(err => {
+        showToast('Gagal memuat daftar pengguna: ' + err.message, 'danger');
+      });
+  }
+
+  function renderUsersTable(users) {
+    const tbody = document.getElementById('table-users-body');
+    tbody.innerHTML = '';
+
+    if (users.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" class="text-muted text-center">Belum ada data pengguna.</td></tr>';
+      return;
+    }
+
+    users.forEach(u => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(u.email)}</strong></td>
+        <td>${escapeHtml(u.name || '-')}</td>
+        <td><span class="user-role-tag">${escapeHtml(u.role)}</span></td>
+        <td>
+          <span class="badge ${u.hasSignature ? 'badge-approved' : 'badge-draft'}">
+            ${u.hasSignature ? '✓ Terpasang' : '-'}
+          </span>
+        </td>
+        <td>
+          <span class="badge ${u.isActive ? 'badge-approved' : 'badge-rejected'}">
+            ${u.isActive ? 'Aktif' : 'Nonaktif'}
+          </span>
+        </td>
+        <td class="text-right">
+          <button class="btn btn-secondary" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;" onclick="openEditUserModal('${escapeHtml(u.email)}')">
+            Edit
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function openAddUserModal() {
+    document.getElementById('modal-user-title').textContent = 'Tambah Pengguna Whitelist';
+    document.getElementById('user-email').value = '';
+    document.getElementById('user-email').disabled = false;
+    document.getElementById('user-name').value = '';
+    document.getElementById('user-role').value = 'drafter';
+    document.getElementById('user-is-active').checked = true;
+    openModal('modal-user');
+  }
+
+  function openEditUserModal(email) {
+    const u = loadedUsersList.find(x => x.email === email);
+    if (!u) return;
+
+    document.getElementById('modal-user-title').textContent = 'Edit Pengguna';
+    document.getElementById('user-email').value = u.email;
+    document.getElementById('user-email').disabled = true; // PK locked
+    document.getElementById('user-name').value = u.name;
+    document.getElementById('user-role').value = u.role;
+    document.getElementById('user-is-active').checked = u.isActive;
+    openModal('modal-user');
+  }
+
+  function handleSaveUser(e) {
+    e.preventDefault();
+    const email = document.getElementById('user-email').value.trim();
+    const name = document.getElementById('user-name').value.trim();
+    const role = document.getElementById('user-role').value;
+    const isActive = document.getElementById('user-is-active').checked;
+
+    const btn = document.getElementById('btn-save-user-submit');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Menyimpan...';
+
+    callServer('upsertUser', { email, name, role, isActive })
+      .then(res => {
+        closeModal('modal-user');
+        showToast(`Pengguna '${email}' berhasil disimpan.`, 'success');
+        loadUsersTable();
+      })
+      .catch(err => {
+        showToast('Gagal menyimpan pengguna: ' + err.message, 'danger');
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = 'Simpan Pengguna';
+      });
+  }
+
+  function previewSignature(e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('signature-preview-img');
+    const placeholder = document.getElementById('signature-preview-placeholder');
+
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        preview.src = evt.target.result;
+        preview.style.display = 'block';
+        placeholder.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    } else {
+      preview.style.display = 'none';
+      placeholder.style.display = 'block';
+    }
+  }
+
+  function handleSaveSignature() {
+    const fileInput = document.getElementById('signature-file-input');
+    if (!fileInput.files || fileInput.files.length === 0) {
+      showToast('Pilih berkas gambar tanda tangan terlebih dahulu!', 'danger');
+      return;
+    }
+
+    const file = fileInput.files[0];
+    const btn = document.getElementById('btn-save-signature');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Mengunggah...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result.split(',')[1];
+      callServer('uploadSignature', base64, file.type)
+        .then(res => {
+          showToast('Tanda tangan referensi berhasil disimpan.', 'success');
+        })
+        .catch(err => {
+          showToast('Gagal mengunggah tanda tangan: ' + err.message, 'danger');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = 'Simpan Tanda Tangan ke Drive';
+        });
+    };
+    reader.readAsDataURL(file);
+  }
+</script>

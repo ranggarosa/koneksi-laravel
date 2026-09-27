@@ -1,0 +1,11 @@
+# Ignore project meta, specifications, and version control
+**/.git/**
+**/node_modules/**
+.specify/**
+specs/**
+docs/**
+README.md
+VERSION
+.gitignore
+.clasp.json
+.clasprc.json

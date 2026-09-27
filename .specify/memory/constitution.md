@@ -14,7 +14,7 @@ Sync Impact Report:
 - Follow-up TODOs: None
 -->
 
-# Sistem Manajemen Surat Menyurat Constitution
+# Koneksi (Kelola Naskah Elektronik dan Komunikasi Internal) Constitution
 
 ## Core Principles
 

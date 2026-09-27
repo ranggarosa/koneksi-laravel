@@ -1,0 +1,501 @@
+<div class="card">
+  <div class="card-header">
+    <div class="d-flex align-center gap-2">
+      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">← Dashboard</button>
+      <h2 id="detail-letter-number" class="card-title mb-0">Memuat Detail Naskah...</h2>
+      <span id="detail-letter-status" class="badge">...</span>
+    </div>
+    <div id="detail-header-actions" class="d-flex gap-2">
+      <!-- Injected based on state -->
+    </div>
+  </div>
+
+  <!-- Loading State -->
+  <div id="detail-loading" class="text-center" style="padding: 3rem 1rem;">
+    <div class="spinner" style="border-color: rgba(37,99,235,0.2); border-top-color: var(--primary); width: 32px; height: 32px;"></div>
+    <p class="text-muted mt-2">Memuat naskah surat dan riwayat persetujuan...</p>
+  </div>
+
+  <!-- Main Detail Content -->
+  <div id="detail-body" style="display: none;">
+    <!-- Rejected Alert -->
+    <div id="alert-rejected" class="alert alert-danger" style="display: none;">
+      <div>
+        <strong>Draf Surat Ditolak (Locked Permanen)</strong>
+        <p style="margin-top: 0.25rem;">Naskah ini telah ditolak oleh peninjau dan diarsipkan secara permanen. Nomor resmi surat telah dirilis kembali ke antrean daur ulang sistem.</p>
+        <button class="btn btn-secondary mt-2" onclick="cloneRejectedDraft()">Salin Menjadi Draf Baru</button>
+      </div>
+    </div>
+
+    <!-- Awaiting Wet Signature Alert & Form -->
+    <div id="alert-wet-signature" class="alert alert-warning" style="display: none;">
+      <div style="width: 100%;">
+        <strong>Menunggu Pengunggahan Tanda Tangan Basah</strong>
+        <p style="margin-top: 0.25rem;">
+          Approver akhir telah memilih metode tanda tangan basah. Silakan buka dokumen draf Google Docs di bawah ini, cetak, tanda tangani secara fisik oleh pejabat terkait, lalu unggah berkas scan (PDF/PNG/JPG) ke sistem.
+        </p>
+        <div class="d-flex gap-2 align-center mt-2 mb-2">
+          <a id="link-unsigned-doc" href="#" target="_blank" class="btn btn-secondary">
+            Buka Draf Google Docs di Google Drive ↗
+          </a>
+        </div>
+        
+        <!-- Form Unggah Scan Tanda Tangan Basah -->
+        <div style="background: white; padding: 1rem; border-radius: var(--radius-md); border: 1px solid #fde68a; margin-top: 1rem;">
+          <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #92400e;">Unggah Hasil Pindai (Scan) Naskah Sah</h4>
+          <input type="file" id="wet-scan-file-input" class="form-control" accept=".pdf,image/png,image/jpeg" style="margin-bottom: 0.75rem;">
+          <button type="button" id="btn-upload-scan" class="btn btn-primary" onclick="handleWetScanUpload()">
+            Unggah Berkas Scan & Sahkan Surat
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Approved Final Notice -->
+    <div id="alert-approved" class="alert alert-success" style="display: none;">
+      <div class="d-flex justify-between align-center" style="width: 100%;">
+        <div>
+          <strong>Surat Telah Sah & Disetujui (Approved)</strong>
+          <p style="margin-top: 0.25rem;">Naskah telah selesai melalui seluruh rangkaian persetujuan dan sah sebagai arsip resmi dinas.</p>
+        </div>
+        <a id="btn-download-final-pdf" href="#" target="_blank" class="btn btn-success">
+          Unduh PDF Final Resmi ↗
+        </a>
+      </div>
+    </div>
+
+    <!-- Letter Information Grid -->
+    <div class="card" style="background: #f8fafc; border: 1px solid var(--border); box-shadow: none;">
+      <h3 style="font-size: 1rem; margin-bottom: 1rem; color: #1e293b;">Metadata & Ringkasan Surat</h3>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; font-size: 0.875rem;">
+        <div>
+          <span class="text-muted" style="display: block;">Jenis Surat</span>
+          <strong id="meta-template-type">-</strong>
+        </div>
+        <div>
+          <span class="text-muted" style="display: block;">Pembuat Draf (Drafter)</span>
+          <strong id="meta-drafter-email">-</strong>
+        </div>
+        <div>
+          <span class="text-muted" style="display: block;">Tanggal Pengajuan</span>
+          <strong id="meta-created-at">-</strong>
+        </div>
+        <div>
+          <span class="text-muted" style="display: block;">Pembaruan Terakhir</span>
+          <strong id="meta-updated-at">-</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dynamic Form Content Table -->
+    <div class="card" style="border: 1px solid var(--border); box-shadow: none;">
+      <h3 style="font-size: 1rem; margin-bottom: 1rem; color: #1e293b;">Isi Variabel Naskah Surat</h3>
+      <div class="table-responsive">
+        <table class="data-table" id="table-content-data">
+          <thead>
+            <tr>
+              <th style="width: 30%;">Atribut Variabel</th>
+              <th>Nilai Isian</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Approval Chain Timeline -->
+    <div class="card" style="border: 1px solid var(--border); box-shadow: none;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: #1e293b;">Alur Persetujuan Berjenjang (Approval Chain)</h3>
+      <div id="timeline-container" class="timeline">
+        <!-- Rendered timeline steps -->
+      </div>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="card" style="border: 1px solid var(--border); box-shadow: none;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.5rem; color: #1e293b;">Jejak Audit Sistem (Audit Trail)</h3>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>Pengguna</th>
+              <th>Aksi</th>
+              <th>Catatan</th>
+            </tr>
+          </thead>
+          <tbody id="table-audit-logs">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Approve Decision -->
+<div id="modal-approve" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1.1rem; font-weight: 700;">Setujui Naskah Surat</h3>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-approve')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label" for="approve-notes">Catatan Persetujuan (Opsional)</label>
+        <textarea id="approve-notes" class="form-control" placeholder="Tambahkan catatan atau paraf keterangan..."></textarea>
+      </div>
+
+      <!-- Khusus Approver Akhir: Pemilihan Metode Pengesahan -->
+      <div id="final-approver-options" style="display: none; background: #eff6ff; padding: 1rem; border-radius: var(--radius-md); border: 1px solid #bfdbfe; margin-top: 1rem;">
+        <label class="form-label font-bold" style="color: #1e40af;">Pilih Metode Pengesahan Surat</label>
+        <div style="margin-bottom: 0.5rem;">
+          <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.5rem;">
+            <input type="radio" name="signatureMethod" value="digital" checked style="margin-top: 0.2rem;">
+            <div>
+              <strong>Tanda Tangan Digital (Otomatis)</strong>
+              <p class="text-muted" style="font-size: 0.8rem;">Sistem akan menyematkan gambar tanda tangan referensi Anda ke template Google Docs dan langsung mengekspor PDF resmi siap unduh.</p>
+            </div>
+          </label>
+        </div>
+        <div>
+          <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 0.5rem;">
+            <input type="radio" name="signatureMethod" value="wet" style="margin-top: 0.2rem;">
+            <div>
+              <strong>Tanda Tangan Basah (Manual)</strong>
+              <p class="text-muted" style="font-size: 0.8rem;">Sistem akan menyiapkan draf Google Docs unsigned. Dokumen dapat dicetak untuk ditandatangani fisik, lalu berkas scan diunggah kembali ke aplikasi.</p>
+            </div>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-approve')">Batal</button>
+      <button id="btn-confirm-approve" class="btn btn-success" onclick="submitDecision('approve')">
+        Konfirmasi Persetujuan
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reject Decision -->
+<div id="modal-reject" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--danger);">Tolak Draf Surat</h3>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-reject')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-danger">
+        <strong>Peringatan Penguncian Status:</strong> Penolakan draf bersifat permanen. Draf akan dikunci dan nomor surat akan dirilis kembali ke sistem agar dapat digunakan oleh draf lain.
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="reject-notes">Alasan Penolakan / Catatan Revisi <span style="color: var(--danger);">*</span></label>
+        <textarea id="reject-notes" class="form-control" required placeholder="Wajib mengisi alasan penolakan naskah secara spesifik..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-reject')">Batal</button>
+      <button id="btn-confirm-reject" class="btn btn-danger" onclick="submitDecision('reject')">
+        Konfirmasi Penolakan Permanen
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+  let currentLoadedLetter = null;
+
+  /**
+   * Loads letter detail from server.
+   * @param {string} letterId
+   */
+  function loadLetterDetail(letterId) {
+    if (!letterId) {
+      navigateTo('dashboard');
+      return;
+    }
+
+    document.getElementById('detail-loading').style.display = 'block';
+    document.getElementById('detail-body').style.display = 'none';
+
+    callServer('getLetterDetail', letterId)
+      .then(letter => {
+        currentLoadedLetter = letter;
+        renderLetterDetail(letter);
+      })
+      .catch(err => {
+        showToast('Gagal memuat surat: ' + err.message, 'danger');
+        navigateTo('dashboard');
+      })
+      .finally(() => {
+        document.getElementById('detail-loading').style.display = 'none';
+        document.getElementById('detail-body').style.display = 'block';
+      });
+  }
+
+  /**
+   * Renders letter data into UI components.
+   * @param {Object} letter
+   */
+  function renderLetterDetail(letter) {
+    document.getElementById('detail-letter-number').textContent = letter.letterNumber || '(Belum bernomor)';
+    
+    // Status Badge
+    const statusBadge = document.getElementById('detail-letter-status');
+    const stNorm = (letter.status || 'Draft').toLowerCase().replace(' ', '_');
+    statusBadge.className = `badge badge-${stNorm}`;
+    statusBadge.textContent = letter.status;
+
+    // Metadata
+    document.getElementById('meta-template-type').textContent = letter.templateType || '-';
+    document.getElementById('meta-drafter-email').textContent = letter.drafterEmail || '-';
+    document.getElementById('meta-created-at').textContent = letter.createdAt ? new Date(letter.createdAt).toLocaleString('id-ID') : '-';
+    document.getElementById('meta-updated-at').textContent = letter.updatedAt ? new Date(letter.updatedAt).toLocaleString('id-ID') : '-';
+
+    // Alerts
+    const alertRejected = document.getElementById('alert-rejected');
+    const alertWet = document.getElementById('alert-wet-signature');
+    const alertApproved = document.getElementById('alert-approved');
+
+    alertRejected.style.display = letter.status === 'Rejected' ? 'block' : 'none';
+    alertWet.style.display = letter.awaitingWetSignature ? 'block' : 'none';
+    alertApproved.style.display = letter.status === 'Approved' ? 'block' : 'none';
+
+    if (letter.awaitingWetSignature && letter.unsignedDriveFileId) {
+      document.getElementById('link-unsigned-doc').href = `https://docs.google.com/document/d/${letter.unsignedDriveFileId}/edit`;
+    }
+
+    if (letter.status === 'Approved' && letter.finalPdfUrl) {
+      document.getElementById('btn-download-final-pdf').href = letter.finalPdfUrl;
+    }
+
+    // Action buttons in header
+    const actionsContainer = document.getElementById('detail-header-actions');
+    actionsContainer.innerHTML = '';
+
+    if (letter.canAct && letter.status === 'In Review') {
+      const btnReject = document.createElement('button');
+      btnReject.className = 'btn btn-danger';
+      btnReject.textContent = 'Tolak Draf';
+      btnReject.onclick = () => openModal('modal-reject');
+
+      const btnApprove = document.createElement('button');
+      btnApprove.className = 'btn btn-success';
+      btnApprove.textContent = letter.isFinalApprover ? 'Sahkan Surat' : 'Setujui (Approve)';
+      btnApprove.onclick = () => {
+        document.getElementById('final-approver-options').style.display = letter.isFinalApprover ? 'block' : 'none';
+        openModal('modal-approve');
+      };
+
+      actionsContainer.appendChild(btnReject);
+      actionsContainer.appendChild(btnApprove);
+    }
+
+    // Render Content Data Table
+    const contentTableBody = document.querySelector('#table-content-data tbody');
+    contentTableBody.innerHTML = '';
+    const content = letter.contentData || {};
+    const keys = Object.keys(content);
+    if (keys.length === 0) {
+      contentTableBody.innerHTML = '<tr><td colspan="2" class="text-muted text-center">Tidak ada variabel isian.</td></tr>';
+    } else {
+      keys.forEach(k => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(k)}</strong></td>
+          <td>${escapeHtml(content[k])}</td>
+        `;
+        contentTableBody.appendChild(tr);
+      });
+    }
+
+    // Render Approval Timeline
+    renderTimeline(letter.approvalFlow);
+
+    // Render Audit Logs
+    renderAuditLogs(letter.auditLogs || []);
+  }
+
+  /**
+   * Renders approval timeline steps.
+   */
+  function renderTimeline(flow) {
+    const container = document.getElementById('timeline-container');
+    container.innerHTML = '';
+
+    if (!Array.isArray(flow) || flow.length === 0) {
+      container.innerHTML = '<p class="text-muted">Tidak ada peninjau terdaftar.</p>';
+      return;
+    }
+
+    flow.forEach(step => {
+      const stepDiv = document.createElement('div');
+      let statusClass = '';
+      let statusText = 'Menunggu Giliran';
+
+      if (step.status === 'approved') {
+        statusClass = 'completed';
+        statusText = 'Disetujui';
+      } else if (step.status === 'rejected') {
+        statusClass = 'rejected';
+        statusText = 'Ditolak';
+      } else if (step.status === 'pending') {
+        // Check if this is the active turn
+        const firstPending = flow.find(f => f.status === 'pending');
+        if (firstPending && firstPending.order === step.order) {
+          statusClass = 'active';
+          statusText = 'Sedang Ditinjau (Giliran Aktif)';
+        }
+      }
+
+      stepDiv.className = `timeline-step ${statusClass}`;
+      stepDiv.innerHTML = `
+        <div class="timeline-marker"></div>
+        <div class="timeline-content">
+          <div class="d-flex justify-between align-center">
+            <strong>Tahap ${step.order}: ${escapeHtml(step.name || step.email)}</strong>
+            <span class="user-role-tag">${escapeHtml(step.role)}</span>
+          </div>
+          <div class="text-muted" style="font-size: 0.8rem; margin-top: 0.25rem;">
+            ${escapeHtml(step.email)} &bull; Status: <strong>${statusText}</strong>
+          </div>
+          ${step.decisionAt ? `<div class="text-muted" style="font-size: 0.75rem;">Waktu Keputusan: ${new Date(step.decisionAt).toLocaleString('id-ID')}</div>` : ''}
+          ${step.notes ? `<div style="margin-top: 0.5rem; padding: 0.5rem; background: white; border-radius: 4px; border: 1px solid var(--border); font-size: 0.85rem;"><em>"${escapeHtml(step.notes)}"</em></div>` : ''}
+        </div>
+      `;
+      container.appendChild(stepDiv);
+    });
+  }
+
+  /**
+   * Renders audit trail table.
+   */
+  function renderAuditLogs(logs) {
+    const tbody = document.getElementById('table-audit-logs');
+    tbody.innerHTML = '';
+
+    if (logs.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" class="text-muted text-center">Belum ada catatan log audit.</td></tr>';
+      return;
+    }
+
+    logs.forEach(log => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="font-size: 0.8rem; white-space: nowrap;">${new Date(log.timestamp).toLocaleString('id-ID')}</td>
+        <td><strong>${escapeHtml(log.actorEmail)}</strong></td>
+        <td><span class="user-role-tag">${escapeHtml(log.action)}</span></td>
+        <td style="font-size: 0.85rem;">${escapeHtml(log.notes || '-')}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  /**
+   * Submits approval or rejection decision.
+   */
+  function submitDecision(decision) {
+    if (!currentLoadedLetter) return;
+
+    let notes = '';
+    let signatureMethod = null;
+
+    if (decision === 'approve') {
+      notes = document.getElementById('approve-notes').value.trim();
+      if (currentLoadedLetter.isFinalApprover) {
+        const radios = document.getElementsByName('signatureMethod');
+        for (const r of radios) {
+          if (r.checked) signatureMethod = r.value;
+        }
+      }
+    } else if (decision === 'reject') {
+      notes = document.getElementById('reject-notes').value.trim();
+      if (!notes) {
+        showToast('Alasan penolakan wajib diisi!', 'danger');
+        return;
+      }
+    }
+
+    const btn = decision === 'approve' ? document.getElementById('btn-confirm-approve') : document.getElementById('btn-confirm-reject');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Memproses...';
+
+    callServer('decide', currentLoadedLetter.letterId, decision, notes, signatureMethod)
+      .then(res => {
+        closeModal(decision === 'approve' ? 'modal-approve' : 'modal-reject');
+        showToast(decision === 'approve' ? 'Persetujuan berhasil dicatat.' : 'Surat telah ditolak dan diarsipkan permanen.', 'success');
+        loadLetterDetail(currentLoadedLetter.letterId);
+      })
+      .catch(err => {
+        showToast('Gagal memproses keputusan: ' + err.message, 'danger');
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = decision === 'approve' ? 'Konfirmasi Persetujuan' : 'Konfirmasi Penolakan Permanen';
+      });
+  }
+
+  /**
+   * Handles uploading wet signature scan.
+   */
+  function handleWetScanUpload() {
+    const fileInput = document.getElementById('wet-scan-file-input');
+    if (!fileInput.files || fileInput.files.length === 0) {
+      showToast('Pilih berkas scan (PDF/PNG/JPG) terlebih dahulu!', 'danger');
+      return;
+    }
+
+    const file = fileInput.files[0];
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Ukuran berkas melebihi batas maksimum 10MB!', 'danger');
+      return;
+    }
+
+    const btn = document.getElementById('btn-upload-scan');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Mengunggah & Memperbarui Versi...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64Data = e.target.result.split(',')[1];
+      callServer('uploadWetSignatureScan', currentLoadedLetter.letterId, base64Data, file.type, file.name)
+        .then(res => {
+          showToast('Berkas scan tanda tangan basah berhasil diunggah dan diverifikasi!', 'success');
+          loadLetterDetail(currentLoadedLetter.letterId);
+        })
+        .catch(err => {
+          showToast('Gagal mengunggah scan: ' + err.message, 'danger');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = 'Unggah Berkas Scan & Sahkan Surat';
+        });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Clones rejected draft data into CreateLetter form.
+   */
+  function cloneRejectedDraft() {
+    if (!currentLoadedLetter) return;
+    navigateTo('create');
+    setTimeout(() => {
+      const sel = document.getElementById('template-select');
+      if (sel) {
+        sel.value = currentLoadedLetter.templateCode;
+        onTemplateChange();
+        
+        // Fill dynamic fields
+        const content = currentLoadedLetter.contentData || {};
+        for (const k of Object.keys(content)) {
+          const inp = document.querySelector(`[name="${k}"]`);
+          if (inp) inp.value = content[k];
+        }
+      }
+    }, 200);
+  }
+</script>

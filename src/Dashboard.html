@@ -1,0 +1,192 @@
+<div class="card">
+  <div class="card-header">
+    <div>
+      <h2 class="card-title mb-0">Dashboard Naskah & Surat Dinas</h2>
+      <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.2rem;">
+        Kelola dan pantau proses persetujuan naskah dinas serta arsip surat resmi instansi.
+      </p>
+    </div>
+    <button id="btn-create-letter-shortcut" class="btn btn-primary" onclick="navigateTo('create')">
+      + Buat Draf Surat
+    </button>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tabs">
+    <div id="tab-my_turn" class="tab-item active" onclick="switchDashboardTab('my_turn')">
+      Perlu Tindakan Saya
+      <span id="badge-count-my_turn" class="user-role-tag" style="margin-left: 0.35rem; display: none;">0</span>
+    </div>
+    <div id="tab-my_drafts" class="tab-item" onclick="switchDashboardTab('my_drafts')">
+      Draf Saya
+    </div>
+    <div id="tab-all_approved" class="tab-item" onclick="switchDashboardTab('all_approved')">
+      Arsip Surat Disetujui
+    </div>
+    <div id="tab-all" class="tab-item" onclick="switchDashboardTab('all')" style="display: none;">
+      Semua Naskah (Admin)
+    </div>
+  </div>
+
+  <!-- Search & Filter Controls -->
+  <div class="d-flex justify-between align-center mb-4" style="gap: 1rem; flex-wrap: wrap;">
+    <div style="flex: 1; min-width: 250px;">
+      <input type="text" id="dashboard-search-input" class="form-control" placeholder="Cari nomor surat, jenis template, atau email pembuat..." oninput="filterDashboardLetters()">
+    </div>
+    <button class="btn btn-secondary" onclick="loadDashboardLetters()">
+      ↻ Segarkan
+    </button>
+  </div>
+
+  <!-- Loading State -->
+  <div id="dashboard-loading" class="text-center" style="padding: 2.5rem 1rem;">
+    <div class="spinner" style="border-color: rgba(37,99,235,0.2); border-top-color: var(--primary); width: 28px; height: 28px;"></div>
+    <p class="text-muted mt-2">Memuat daftar surat...</p>
+  </div>
+
+  <!-- Letters Data Table -->
+  <div class="table-responsive" id="dashboard-table-container" style="display: none;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Nomor Surat Resmi</th>
+          <th>Jenis Surat</th>
+          <th>Pembuat (Drafter)</th>
+          <th>Status</th>
+          <th>Giliran Peninjau</th>
+          <th>Tanggal Pengajuan</th>
+          <th class="text-right">Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="dashboard-letters-tbody">
+        <!-- Rendered rows -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  let activeDashboardTab = 'my_turn';
+  let cachedDashboardLetters = [];
+
+  function loadDashboardLetters() {
+    const user = AppState.currentUser;
+    if (!user) return;
+
+    // Show Admin tab if role === admin
+    const tabAdmin = document.getElementById('tab-all');
+    if (user.role === 'admin') {
+      tabAdmin.style.display = 'block';
+    } else {
+      tabAdmin.style.display = 'none';
+      if (activeDashboardTab === 'all') activeDashboardTab = 'my_turn';
+    }
+
+    // Toggle "+ Buat Draf" button visibility
+    const btnCreate = document.getElementById('btn-create-letter-shortcut');
+    btnCreate.style.display = (user.role === 'drafter' || user.role === 'admin') ? 'inline-flex' : 'none';
+
+    document.getElementById('dashboard-loading').style.display = 'block';
+    document.getElementById('dashboard-table-container').style.display = 'none';
+
+    callServer('getLettersForUser', activeDashboardTab)
+      .then(letters => {
+        cachedDashboardLetters = letters || [];
+        renderDashboardTable(cachedDashboardLetters);
+
+        // Update badge count for my_turn tab
+        if (activeDashboardTab === 'my_turn') {
+          const badgeCount = document.getElementById('badge-count-my_turn');
+          if (badgeCount) {
+            badgeCount.textContent = cachedDashboardLetters.length;
+            badgeCount.style.display = cachedDashboardLetters.length > 0 ? 'inline-block' : 'none';
+          }
+        }
+      })
+      .catch(err => {
+        showToast('Gagal memuat surat: ' + err.message, 'danger');
+      })
+      .finally(() => {
+        document.getElementById('dashboard-loading').style.display = 'none';
+        document.getElementById('dashboard-table-container').style.display = 'block';
+      });
+  }
+
+  function switchDashboardTab(tabKey) {
+    activeDashboardTab = tabKey;
+    const tabs = ['my_turn', 'my_drafts', 'all_approved', 'all'];
+    tabs.forEach(t => {
+      const el = document.getElementById(`tab-${t}`);
+      if (el) el.classList.toggle('active', t === tabKey);
+    });
+
+    const searchInput = document.getElementById('dashboard-search-input');
+    if (searchInput) searchInput.value = '';
+
+    loadDashboardLetters();
+  }
+
+  function filterDashboardLetters() {
+    const query = (document.getElementById('dashboard-search-input').value || '').toLowerCase().trim();
+    if (!query) {
+      renderDashboardTable(cachedDashboardLetters);
+      return;
+    }
+
+    const filtered = cachedDashboardLetters.filter(l => {
+      const num = (l.letterNumber || '').toLowerCase();
+      const type = (l.templateType || '').toLowerCase();
+      const drafter = (l.drafterEmail || '').toLowerCase();
+      return num.includes(query) || type.includes(query) || drafter.includes(query);
+    });
+
+    renderDashboardTable(filtered);
+  }
+
+  function renderDashboardTable(letters) {
+    const tbody = document.getElementById('dashboard-letters-tbody');
+    tbody.innerHTML = '';
+
+    if (!letters || letters.length === 0) {
+      let emptyMsg = 'Belum ada surat pada tab ini.';
+      if (activeDashboardTab === 'my_turn') {
+        emptyMsg = 'Tidak ada surat yang membutuhkan tindakan persetujuan Anda saat ini.';
+      } else if (activeDashboardTab === 'my_drafts') {
+        emptyMsg = 'Anda belum memiliki draf surat. Klik tombol "+ Buat Draf Surat" untuk memulai.';
+      } else if (activeDashboardTab === 'all_approved') {
+        emptyMsg = 'Belum ada arsip surat yang berstatus disetujui secara final.';
+      }
+      tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center" style="padding: 2.5rem 1rem;">${emptyMsg}</td></tr>`;
+      return;
+    }
+
+    letters.forEach(letter => {
+      const tr = document.createElement('tr');
+      const stNorm = (letter.status || 'Draft').toLowerCase().replace(' ', '_');
+
+      tr.innerHTML = `
+        <td><strong>${escapeHtml(letter.letterNumber || '(Belum terbit)')}</strong></td>
+        <td>${escapeHtml(letter.templateType || '-')}</td>
+        <td>${escapeHtml(letter.drafterEmail || '-')}</td>
+        <td>
+          <span class="badge badge-${stNorm}">
+            ${escapeHtml(letter.status)}
+            ${letter.awaitingWetSignature ? ' (Scan Basah)' : ''}
+          </span>
+        </td>
+        <td style="font-size: 0.85rem;">
+          ${letter.currentTurnEmail ? `<span>${escapeHtml(letter.currentTurnEmail)}</span>` : '<span class="text-muted">-</span>'}
+        </td>
+        <td style="font-size: 0.8rem; white-space: nowrap;">
+          ${letter.createdAt ? new Date(letter.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+        </td>
+        <td class="text-right">
+          <button class="btn btn-secondary" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;" onclick="navigateTo('detail', '${escapeHtml(letter.letterId)}')">
+            Buka Detail →
+          </button>
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+</script>
