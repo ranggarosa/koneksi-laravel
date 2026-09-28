@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Koneksi - Sistem Manajemen Surat Menyurat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <?!= include('Stylesheet') ?>
+</head>
+<body>
+  <!-- Navigation Header -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="javascript:void(0)" onclick="navigateTo('dashboard')" class="nav-brand">
+        <div class="brand-logo-icon">K</div>
+        <div>
+          <span>Koneksi</span>
+          <span style="font-size: 0.75rem; display: block; color: var(--text-muted); font-weight: normal;">Manajemen Surat Menyurat</span>
+        </div>
+      </a>
+
+      <nav class="nav-links">
+        <a id="nav-dashboard" class="nav-link active" onclick="navigateTo('dashboard')">Dashboard</a>
+        <a id="nav-create" class="nav-link" onclick="navigateTo('create')" style="display: none;">+ Buat Surat</a>
+        <a id="nav-settings" class="nav-link" onclick="navigateTo('settings')" style="display: none;">Pengaturan</a>
+      </nav>
+
+      <div id="user-badge-container" class="user-badge" style="display: none;">
+        <!-- Injected via JavaScript.html -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main class="main-content">
+    <!-- Global Notification Banner -->
+    <div id="global-toast" style="display: none;"></div>
+
+    <!-- View: Login / Access Denied -->
+    <div id="view-login" style="display: none;">
+      <?!= include('Login') ?>
+    </div>
+
+    <!-- View: Dashboard -->
+    <div id="view-dashboard" style="display: none;">
+      <?!= include('Dashboard') ?>
+    </div>
+
+    <!-- View: Create Letter Form -->
+    <div id="view-create" style="display: none;">
+      <?!= include('CreateLetter') ?>
+    </div>
+
+    <!-- View: Letter Detail & Approval -->
+    <div id="view-detail" style="display: none;">
+      <?!= include('LetterDetail') ?>
+    </div>
+
+    <!-- View: Settings (Admin & Signatures) -->
+    <div id="view-settings" style="display: none;">
+      <?!= include('Settings') ?>
+    </div>
+  </main>
+
+  <script>
+    window.INITIAL_PAGE = '<?= page ?>';
+    window.INITIAL_LETTER_ID = '<?= letterId ?>';
+  </script>
+  <?!= include('JavaScript') ?>
+</body>
+</html>
