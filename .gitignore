@@ -33,6 +33,7 @@ client_secret*.json
 # Google Apps Script & Clasp
 # SANGAT PENTING: Jangan commit .clasprc.json (kredensial token Google OAuth user)
 .clasprc.json
+.clasp.json
 
 # IDEs & Code Editors
 .vscode/*
