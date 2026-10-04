@@ -60,14 +60,15 @@ koneksi-speckit/
 │   ├── admin.controller.gs       # Controller: manajemen user & upload tanda tangan
 │   │
 │   ├── auth.service.gs           # Service: logika autentikasi & validasi role
-│   ├── letter.service.gs         # Service: alur persetujuan, penolakan, hak akses privasi
+│   ├── letter.service.gs         # Service: alur persetujuan, penolakan, hak akses privasi, ambil nomor
 │   ├── numbering.service.gs      # Service: penomoran atomik LockService & antrean daur ulang
 │   ├── document.service.gs       # Service: injeksi Docs, export PDF, Drive.Files.update
 │   ├── notification.service.gs   # Service: notifikasi email terformat via MailApp
+│   ├── schedule.service.gs       # Service: audit harian rekonsiliasi, eskalasi H-2, auto-expire H+7
 │   │
 │   ├── user.repository.gs        # Repository: CRUD sheet Users
-│   ├── letter.repository.gs      # Repository: CRUD sheet Letters
-│   ├── counter.repository.gs     # Repository: CRUD sheet Counters & recycled numbers pool
+│   ├── letter.repository.gs      # Repository: CRUD sheet Letters (ekstensi naskah eksternal)
+│   ├── counter.repository.gs     # Repository: CRUD sheet Counters & cross-month recycled numbers pool
 │   ├── sheet.repository.gs       # Repository: Wrapper SpreadsheetApp & formula escaping
 │   │
 │   ├── TestUtils.gs              # Helper pengujian assertions & global test runner
@@ -75,12 +76,13 @@ koneksi-speckit/
 │   ├── letter.test.gs            # Unit test alur persetujuan, penolakan & percabangan
 │   ├── auth.test.gs              # Unit test whitelist & penolakan sesi
 │   ├── document.test.gs          # Unit test verifikasi revisi berkas basah
+│   ├── take-number.test.gs       # Unit test reservasi nomor eksternal & rekonsiliasi (12 tests)
 │   │
 │   ├── Index.html                # Shell layout & client-side router
 │   ├── Login.html                # Tampilan penolakan akses non-whitelist
-│   ├── Dashboard.html            # Tampilan tab: Perlu Tindakan, Draf Saya, Arsip Terbuka
-│   ├── CreateLetter.html         # Formulir draf dinamis & seleksi reviewer/approver
-│   ├── LetterDetail.html         # Detail naskah, timeline audit, tombol approve/reject, form scan
+│   ├── Dashboard.html            # Tampilan tab: Perlu Tindakan, Draf Saya, Arsip Terbuka & Buku Agenda
+│   ├── CreateLetter.html         # Formulir draf internal & form Ambil Nomor (eksternal)
+│   ├── LetterDetail.html         # Detail naskah, timeline audit, approve/reject, form scan, pembatalan
 │   ├── Settings.html             # Panel Admin (Kelola Pengguna) & Approver (Tanda Tangan)
 │   ├── Stylesheet.html           # Definisi style bersama (UI styling)
 │   ├── JavaScript.html           # Client-side controller & pemanggilan google.script.run
@@ -88,7 +90,8 @@ koneksi-speckit/
 │   └── appsscript.json           # Manifest Apps Script (V8 runtime, scopes)
 │
 ├── specs/                        # Dokumentasi spesifikasi fitur (Spec Kit)
-│   └── 001-manajemen-surat/      # Spesifikasi, rencana, tasks, dan contracts
+│   ├── 001-manajemen-surat/      # Spesifikasi, rencana, tasks, dan contracts internal letters
+│   └── 002-ambil-nomor-surat/    # Spesifikasi, rencana, tasks, dan contracts Ambil Nomor
 ├── .specify/                     # Tata kelola & memori Spec Kit (constitution.md)
 ├── .agents/                      # Skills & workflows otomatisasi agent
 ├── docs/                         # Arsip dokumentasi proyek
@@ -97,7 +100,7 @@ koneksi-speckit/
 ├── .claspignore                  # Berkas yang diabaikan saat push clasp
 ├── .gitignore                    # Konfigurasi ignore file Git
 ├── README.md                     # Dokumentasi utama repositori
-└── VERSION                       # Sumber kebenaran versi proyek (v0.1.0)
+└── VERSION                       # Sumber kebenaran versi proyek (v0.3.0)
 ```
 
 ---
@@ -218,19 +221,20 @@ Untuk memastikan seluruh logika bisnis berjalan normal di runtime Google Apps Sc
 3. Pastikan Execution Log menampilkan seluruh suite berhasil:
    ```text
    ======================================================
-   TEST SUMMARY: 4/4 passed (0 failed)
+   TEST SUMMARY: 5/5 passed (0 failed)
    ======================================================
    ✓ NumberingService Test Suite PASSED
    ✓ LetterService Test Suite PASSED
    ✓ DocumentService Test Suite PASSED
    ✓ AuthService Test Suite PASSED
+   ✓ TakeNumber Test Suite PASSED
    ```
 
 #### Langkah 7: Deploy sebagai Web App
 1. Klik tombol **Deploy** di pojok kanan atas > **New deployment**.
 2. Klik ikon gerigi ⚙️ di samping *Select type* > pilih **Web app**.
 3. Atur konfigurasi deployment:
-   - **Description**: `Koneksi Web App v0.1.0`
+   - **Description**: `Koneksi Web App v0.3.0`
    - **Execute as**: `User accessing the web app`
    - **Who has access**: `Anyone` (atau sesuaikan dengan kebutuhan domain Google Workspace Anda)
 4. Klik **Deploy**.
@@ -252,7 +256,7 @@ Seluruh pengujian unit inti dapat dijalankan langsung tanpa menyentuh Google She
 
 ### 3. Versioning & Konvensi Commit
 
-- **Versioning**: Proyek mengikuti **Semantic Versioning 2.0.0** (`vMAJOR.MINOR.PATCH`). Berkas [`VERSION`](VERSION) di root repositori adalah **sumber kebenaran tunggal** versi proyek (saat ini `v0.1.0`).
+- **Versioning**: Proyek mengikuti **Semantic Versioning 2.0.0** (`vMAJOR.MINOR.PATCH`). Berkas [`VERSION`](VERSION) di root repositori adalah **sumber kebenaran tunggal** versi proyek (saat ini `v0.3.0`).
 - **Pesan Commit**: Mengikuti standar **Conventional Commits v1.0.0** dengan footer versi wajib:
   ```text
   <tipe>(<scope opsional>): <deskripsi singkat imperative>
