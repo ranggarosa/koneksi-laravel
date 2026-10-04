@@ -30,11 +30,6 @@ client_secret*.json
 *.key
 *.cert
 
-# Google Apps Script & Clasp
-# SANGAT PENTING: Jangan commit .clasprc.json (kredensial token Google OAuth user)
-.clasprc.json
-.clasp.json
-
 # IDEs & Code Editors
 .vscode/*
 !.vscode/settings.json
@@ -58,3 +53,15 @@ tmp/
 # Spec Kit Local State
 .specify/feature.json
 .specify/extensions/*/local-config.yml
+
+# PHP & Laravel
+/vendor/
+/public/build/
+/public/hot
+/public/storage
+/storage/*.key
+.phpunit.result.cache
+Homestead.json
+Homestead.yaml
+auth.json
+
