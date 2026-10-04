@@ -9,11 +9,19 @@ const ROLES = Object.freeze({
   ADMIN: 'admin'
 });
 
+const DOCUMENT_TYPE = Object.freeze({
+  INTERNAL: 'INTERNAL',
+  EXTERNAL: 'EXTERNAL'
+});
+
 const LETTER_STATUS = Object.freeze({
   DRAFT: 'Draft',
   IN_REVIEW: 'In Review',
+  PENDING_UPLOAD: 'Pending Upload',
   APPROVED: 'Approved',
-  REJECTED: 'Rejected'
+  REJECTED: 'Rejected',
+  EXPIRED: 'Expired',
+  CANCELLED: 'Cancelled'
 });
 
 const FLOW_STATUS = Object.freeze({
@@ -32,7 +40,17 @@ const AUDIT_ACTION = Object.freeze({
   APPROVE: 'approve',
   REJECT: 'reject',
   CHOOSE_SIGNATURE_METHOD: 'choose_signature_method',
-  UPLOAD_WET_SIGNATURE: 'upload_wet_signature'
+  UPLOAD_WET_SIGNATURE: 'upload_wet_signature',
+  // Ambil Nomor Actions
+  SUBMIT_TAKE_NUMBER: 'submit_take_number',
+  APPROVE_TAKE_NUMBER: 'approve_take_number',
+  REJECT_TAKE_NUMBER: 'reject_take_number',
+  CANCEL_TAKE_NUMBER_DRAFTER: 'cancel_take_number_drafter',
+  CANCEL_TAKE_NUMBER_MANUAL: 'cancel_take_number_manual',
+  AUTO_EXPIRE_TAKE_NUMBER: 'auto_expire_take_number',
+  ESCALATE_TAKE_NUMBER_DAY5: 'escalate_take_number_day5',
+  UPLOAD_FINAL_SCAN: 'upload_final_scan',
+  REPLACE_FINAL_SCAN_ADMIN: 'replace_final_scan_admin'
 });
 
 const SHEET_NAMES = Object.freeze({
