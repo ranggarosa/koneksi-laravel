@@ -255,6 +255,8 @@ const letterController = {
         message: err.message
       };
     }
+  },
+
   /**
    * Manually cancels an external take-number request in 'Pending Upload' status.
    * @param {string} letterId
