@@ -1,16 +1,16 @@
 <div class="card">
   <div class="card-header">
     <h2 class="card-title">Buat Draf Surat Baru</h2>
-    <button class="btn btn-secondary" onclick="navigateTo('dashboard')">← Kembali ke Dashboard</button>
+    <button class="btn btn-secondary" onclick="navigateTo('dashboard')">Kembali ke Dashboard</button>
   </div>
 
   <!-- Tab Navigation: Internal Draft vs Ambil Nomor Eksternal -->
   <div class="tabs">
     <div class="tab-item active" id="tab-internal-draft" onclick="switchCreateMode('internal')">
-      📄 Buat Draf Internal
+      Buat Draf Internal
     </div>
     <div class="tab-item" id="tab-take-number" onclick="switchCreateMode('take-number')">
-      🔢 Ambil Nomor Surat (Eksternal / Fisik)
+      Ambil Nomor Surat (Eksternal / Fisik)
     </div>
   </div>
 
@@ -83,15 +83,13 @@
       <strong>Informasi Ambil Nomor:</strong> Gunakan formulir ini untuk mereservasi nomor resmi surat fisik/eksternal yang dicetak dan ditandatangani di luar sistem. Nomor resmi akan diterbitkan setelah disetujui Approver. Rekonsiliasi berkas scan wajib dilakukan dalam 7 hari kalender.
     </div>
 
-    <!-- 1. Pilihan Template -->
+    <!-- 1. Pilihan Template / Jenis Surat (Text Box) -->
     <div class="form-group">
-      <label class="form-label" for="tn-template-select">Pilih Jenis Surat <span style="color:var(--danger)">*</span></label>
-      <select id="tn-template-select" class="form-control" required>
-        <option value="">-- Pilih Jenis Surat --</option>
-        <option value="SP1" data-name="Surat Peringatan 1">Surat Peringatan 1 (SP1)</option>
-        <option value="ST" data-name="Surat Tugas">Surat Tugas (ST)</option>
-        <option value="SK" data-name="Surat Keputusan">Surat Keputusan (SK)</option>
-      </select>
+      <label class="form-label" for="tn-template-input">Jenis Surat / Kode Naskah <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="tn-template-input" class="form-control" required placeholder="Contoh: ST, SP1, SK, UND, dsb.">
+      <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+        Masukkan kode atau jenis naskah surat fisik yang akan dicantumkan pada format nomor resmi.
+      </p>
     </div>
 
     <!-- 2. Perihal Surat -->
@@ -339,7 +337,7 @@
       <select class="form-control reviewer-select" required>
         ${optionsHtml}
       </select>
-      <button type="button" class="btn btn-secondary" style="padding: 0.5rem 0.75rem; color: var(--danger);" onclick="removeReviewerRow('${rowId}')">✕</button>
+      <button type="button" class="btn btn-secondary" style="padding: 0.5rem 0.75rem; color: var(--danger);" onclick="removeReviewerRow('${rowId}')">&times;</button>
     `;
 
     container.appendChild(row);
@@ -437,10 +435,10 @@
   function handleTakeNumberSubmit(e) {
     e.preventDefault();
 
-    const templateSelect = document.getElementById('tn-template-select');
-    const selectedOpt = templateSelect.options[templateSelect.selectedIndex];
-    const templateCode = templateSelect.value;
-    const templateType = selectedOpt.dataset.name || selectedOpt.text;
+    const templateInput = document.getElementById('tn-template-input');
+    const templateVal = templateInput ? templateInput.value.trim() : '';
+    const templateCode = templateVal.toUpperCase();
+    const templateType = templateVal;
 
     const perihal = document.getElementById('tn-perihal').value.trim();
     const tujuan = document.getElementById('tn-tujuan').value.trim();
@@ -450,7 +448,7 @@
     const approverOpt = approverSelect.options[approverSelect.selectedIndex];
 
     if (!templateCode) {
-      showToast('Pilih jenis surat terlebih dahulu!', 'danger');
+      showToast('Jenis surat wajib diisi!', 'danger');
       return;
     }
     if (!perihal || !tujuan) {

@@ -697,6 +697,39 @@ function runTakeNumberTests() {
     letterService.cleanupOrphanedDriveFile = originalCleanup;
   })();
 
+  // Test 13: Submit Take Number supports text box letter type with uppercase normalization and empty validation
+  (() => {
+    const mockLetterRepo = TestUtils.createMockLetterRepository();
+    const mockAuditLogRepo = TestUtils.createMockAuditLogRepository();
+    letterService.setLetterRepository(mockLetterRepo);
+    letterService.setAuditLogRepository(mockAuditLogRepo);
+
+    const drafter = { email: 'drafter@koneksi.org', role: ROLES.DRAFTER };
+
+    // Case 1: Empty templateCode
+    TestUtils.assertThrows(
+      () => letterService.submitTakeNumberRequest(drafter, {
+        templateCode: '',
+        contentData: { perihal: 'Perihal', tujuan: 'Tujuan', tanggalSurat: todayStr },
+        approver: { email: 'approver@koneksi.org' }
+      }),
+      'Jenis surat wajib diisi',
+      'Input jenis surat kosong harus ditolak'
+    );
+
+    // Case 2: Custom lowercase text box input gets uppercase normalized
+    const customRes = letterService.submitTakeNumberRequest(drafter, {
+      templateCode: 'und',
+      templateType: 'undangan dinas',
+      contentData: { perihal: 'Undangan Rapat', tujuan: 'Dinas Pendidikan', tanggalSurat: todayStr },
+      approver: { email: 'approver@koneksi.org' }
+    });
+
+    const saved = mockLetterRepo.findById(customRes.letterId);
+    TestUtils.assertEqual(saved.templateCode, 'UND', 'templateCode harus dinormalisasi menjadi huruf kapital');
+    TestUtils.assertEqual(saved.templateType, 'undangan dinas', 'templateType teks tersimpan sesuai input');
+  })();
+
   console.log('✓ Seluruh pengujian User Story 1, 2, 3, 5 & Polish TakeNumber PASSED.');
 }
 

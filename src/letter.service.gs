@@ -635,7 +635,7 @@ const letterService = {
       throw err;
     }
 
-    const templateCode = (payload.templateCode || '').trim();
+    const templateCode = (payload.templateCode || '').trim().toUpperCase();
     const templateType = (payload.templateType || '').trim() || templateCode;
     const contentData = payload.contentData || {};
     const perihal = (contentData.perihal || '').trim();
@@ -645,7 +645,7 @@ const letterService = {
     const approverEmail = (approver.email || '').toLowerCase().trim();
 
     if (!templateCode) {
-      const err = new Error('Kode template wajib dipilih.');
+      const err = new Error('Jenis surat wajib diisi.');
       err.code = 'VALIDATION_ERROR';
       throw err;
     }

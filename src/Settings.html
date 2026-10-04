@@ -1,7 +1,7 @@
 <div class="card">
   <div class="card-header">
     <div class="d-flex align-center gap-2">
-      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">← Dashboard</button>
+      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">Dashboard</button>
       <h2 class="card-title mb-0">Pengaturan Sistem & Profil</h2>
     </div>
   </div>
@@ -69,7 +69,7 @@
   <div class="modal-dialog">
     <div class="modal-header">
       <h3 id="modal-user-title" style="font-size: 1.1rem; font-weight: 700;">Tambah Pengguna Whitelist</h3>
-      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-user')">✕</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-user')">&times;</button>
     </div>
     <form onsubmit="handleSaveUser(event)">
       <div class="modal-body">
@@ -154,7 +154,7 @@
         <td><span class="user-role-tag">${escapeHtml(u.role)}</span></td>
         <td>
           <span class="badge ${u.hasSignature ? 'badge-approved' : 'badge-draft'}">
-            ${u.hasSignature ? '✓ Terpasang' : '-'}
+            ${u.hasSignature ? 'Terpasang' : '-'}
           </span>
         </td>
         <td>

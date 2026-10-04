@@ -7,7 +7,7 @@ Kode tidak boleh dicampur dalam satu file. Setiap fitur harus dibagi ke dalam 4 
 
 1. **View/Presentation Layer (`/pages`, `/components`)**
    - **Tugas:** Hanya mengatur tampilan antarmuka (UI) dan menerima interaksi user (klik, ketik).
-   - **Aturan:** Dilarang berisi logika bisnis atau query database secara langsung.
+   - **Aturan:** Dilarang berisi logika bisnis atau query database secara langsung. Dilarang keras menggunakan emoji/emote grafis pada seluruh elemen antarmuka (UI).
 2. **Controller Layer (`/controllers` atau Custom Hooks)**
    - **Tugas:** Menghubungkan UI dengan Service. Mengelola state aplikasi (loading, error, success) dan membaca input.
    - **Aturan:** Meneruskan data dari View ke Service.
