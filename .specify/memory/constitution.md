@@ -1,15 +1,10 @@
 <!--
 Sync Impact Report:
-- Version change: 2.0.0 → 2.1.0
-- List of modified principles:
-  - Modified III. Document Integrity, Atomic Sequence Numbering & Legal Immutability (added strict prohibition against hard deleting letters, numbers, or approval workflows)
-  - Added VII. Ephemeral Storage Isolation & Remote Object Storage Integrity (mandated cloud object storage for uploads and PDFs, prohibiting local dyno storage)
-  - Added VIII. Asynchronous Workload Queueing & Heroku 30-Second Timeout Protection (mandated ShouldQueue for PDF generation and email dispatches)
-  - Added IX. Environment Parity & Dev/Prod Mirroring (mandated containerized PostgreSQL via Laravel Sail for local development)
-- Added sections:
-  - Cloud Object Storage Evaluation & Selection (Cloudflare R2 as primary recommended, Supabase Storage, and AWS S3)
-  - Local Development Environment Specification for macOS Sequoia on x86_64 ThinkPad T480 (Docker + OrbStack/Colima with Laravel Sail)
-  - Zero-Downtime Release Phase & Migration Safety Rules
+- Version change: 2.1.0 → 2.1.1
+- List of modified principles: None
+- Technical Stack Amendments:
+  - Framework runtime upgraded: Laravel 11.x (PHP 8.2+) → Laravel 13.x (PHP 8.3+) for active support lifecycle and long-term security.
+  - Local development container specification updated to PHP 8.3+ in Laravel Sail.
 - Removed sections: None
 - Follow-up TODOs: None
 -->
@@ -95,7 +90,7 @@ Following Twelve-Factor App principles, local development environments MUST main
 ## Technology Stack & Platform Architecture
 
 ### Framework & Language Runtime
-- **Backend Framework**: Laravel 11.x on PHP 8.2+.
+- **Backend Framework**: Laravel 13.x on PHP 8.3+.
 - **Frontend / Templating**: Laravel Blade Templates with Tailwind CSS, bundled and compiled via Vite (`npm run build`).
 
 ### Database Engine: PostgreSQL (Heroku Postgres)
@@ -139,7 +134,7 @@ To ensure seamless deployment to Heroku from a macOS Sequoia system running on L
 - **Recommended Setup**: **Laravel Sail** powered by **OrbStack** (or **Colima** / **Docker Desktop**).
   - *Architecture Advantage*: Because the ThinkPad T480 is native Intel x86_64, Linux containers run without Rosetta or QEMU translation overhead, matching Heroku's 64-bit Linux architecture 1:1.
   - *Resource Efficiency*: OrbStack or Colima provides significantly lower CPU and battery consumption on ThinkPad T480 compared to legacy virtual machines.
-  - *Services Provided*: Pre-configured containers for PHP 8.2+, PostgreSQL 16 (mirroring Heroku Postgres), and Redis.
+  - *Services Provided*: Pre-configured containers for PHP 8.3+, PostgreSQL 16 (mirroring Heroku Postgres), and Redis.
 
 ## Development Workflow, Release & Quality Gates
 
@@ -185,4 +180,4 @@ The Constitution itself is versioned according to Semantic Versioning principles
 - All engineering activities—including feature specifications (`/speckit-specify`), architectural plans (`/speckit-plan`), and task implementations (`/speckit-implement`)—MUST actively verify conformance with this Constitution.
 - Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces raw SQL or XSS vectors, uses unmigrated DB changes, relies on ephemeral dyno storage, or violates the emoji prohibition.
 
-**Version**: 2.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
+**Version**: 2.1.1 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
