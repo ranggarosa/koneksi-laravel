@@ -1,0 +1,14 @@
+{
+    "preset": "laravel",
+    "rules": {
+        "simplified_null_return": true,
+        "braces_position": {
+            "classes_opening_brace": "next_line_unless_newline_at_signature_end",
+            "functions_opening_brace": "next_line_unless_newline_at_signature_end"
+        },
+        "new_with_parentheses": {
+            "anonymous_class": false,
+            "named_class": false
+        }
+    }
+}
