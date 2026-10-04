@@ -1,15 +1,9 @@
 <!--
 Sync Impact Report:
-- Version change: Uninitialized → 1.0.0
+- Version change: 1.0.0 → 1.1.0
 - List of modified principles:
-  - [PRINCIPLE_1_NAME] → I. Strict Layered Architecture & Unidirectional Data Flow
-  - [PRINCIPLE_2_NAME] → II. Server-Side Single Source of Truth & Zero Trust Authorization
-  - [PRINCIPLE_3_NAME] → III. Document Integrity & Atomic Sequence Numbering (Race Condition Immunity)
-  - [PRINCIPLE_4_NAME] → IV. Test-Driven Verification of Critical Business Rules
-  - [PRINCIPLE_5_NAME] → V. Defensive Security, Formula Injection Mitigation & Comprehensive Auditability
-- Added sections:
-  - Technology Stack & Phase-Specific Constraints (replacing [SECTION_2_NAME])
-  - Development Workflow, Release & Quality Gates (replacing [SECTION_3_NAME])
+  - Added VI. Professional UI Integrity & Global Emoji/Emote Prohibition
+- Added sections: None
 - Removed sections: None
 - Follow-up TODOs: None
 -->
@@ -63,6 +57,12 @@ All components MUST implement defensive programming to safeguard sensitive emplo
 - **Credential & Secret Protection**: All template IDs, folder IDs, and environment-specific settings MUST be stored in `PropertiesService` (Script Properties) and never committed to version control, steering files, or source code.
 - **Tamper-Evident Audit Logging**: Every state modification (`submitDraft`, `approve`, `reject`, `uploadSignature`, `verifyRevision`) MUST write an immutable record to the `ApprovalLog` repository containing timestamp, actor email, target letter ID, and transition metadata.
 - **Rationale**: Mitigates critical spreadsheet-based injection vulnerabilities, safeguards personal employee data, and provides legally defensible auditability.
+
+### VI. Professional UI Integrity & Global Emoji/Emote Prohibition
+All user-facing interfaces (UI) MUST maintain a formal, clean, and institutional aesthetic suitable for official administrative systems.
+- **Strict Prohibition of Emojis and Emotes**: The use of visual emojis, emoticons, or pictographic emote characters (such as 📄, 🔢, 🚀, 😊, etc.) within UI navigation, buttons, titles, modal headers, status badges, or labels is strictly prohibited across the entire application.
+- **Iconography Standard**: If visual aids are necessary, the UI MUST rely exclusively on professional text labels, standard typography, or formal CSS/SVG geometric glyphs without informal decorative pictograms.
+- **Rationale**: Official correspondence and administrative workflows demand a sober, unambiguous, and professional presentation. Decorative emojis degrade credibility, introduce font rendering inconsistencies across operating systems, and conflict with institutional standards.
 
 ## Technology Stack & Phase-Specific Constraints
 
@@ -127,4 +127,4 @@ The Constitution itself is versioned according to Semantic Versioning principles
 - All engineering activities—including feature specifications (`/speckit-specify`), architectural plans (`/speckit-plan`), and task implementations (`/speckit-implement`)—MUST actively verify conformance with this Constitution.
 - Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces formula injection vulnerabilities, or omits mandatory critical unit tests.
 
-**Version**: 1.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-09-24
+**Version**: 1.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04

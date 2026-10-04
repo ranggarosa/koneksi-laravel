@@ -21,7 +21,7 @@
       Draf Saya
     </div>
     <div id="tab-all_approved" class="tab-item" onclick="switchDashboardTab('all_approved')">
-      Arsip Surat Disetujui
+      Buku Agenda & Arsip Surat
     </div>
     <div id="tab-all" class="tab-item" onclick="switchDashboardTab('all')" style="display: none;">
       Semua Naskah (Admin)
@@ -31,10 +31,10 @@
   <!-- Search & Filter Controls -->
   <div class="d-flex justify-between align-center mb-4" style="gap: 1rem; flex-wrap: wrap;">
     <div style="flex: 1; min-width: 250px;">
-      <input type="text" id="dashboard-search-input" class="form-control" placeholder="Cari nomor surat, jenis template, atau email pembuat..." oninput="filterDashboardLetters()">
+      <input type="text" id="dashboard-search-input" class="form-control" placeholder="Cari nomor surat, jenis template, perihal, atau email pembuat..." oninput="filterDashboardLetters()">
     </div>
     <button class="btn btn-secondary" onclick="loadDashboardLetters()">
-      ↻ Segarkan
+      Segarkan
     </button>
   </div>
 
@@ -137,7 +137,8 @@
       const num = (l.letterNumber || '').toLowerCase();
       const type = (l.templateType || '').toLowerCase();
       const drafter = (l.drafterEmail || '').toLowerCase();
-      return num.includes(query) || type.includes(query) || drafter.includes(query);
+      const perihal = (l.perihal || '').toLowerCase();
+      return num.includes(query) || type.includes(query) || drafter.includes(query) || perihal.includes(query);
     });
 
     renderDashboardTable(filtered);
@@ -154,7 +155,7 @@
       } else if (activeDashboardTab === 'my_drafts') {
         emptyMsg = 'Anda belum memiliki draf surat. Klik tombol "+ Buat Draf Surat" untuk memulai.';
       } else if (activeDashboardTab === 'all_approved') {
-        emptyMsg = 'Belum ada arsip surat yang berstatus disetujui secara final.';
+        emptyMsg = 'Belum ada arsip surat atau nomor resmi yang tercatat di buku agenda.';
       }
       tbody.innerHTML = `<tr><td colspan="7" class="text-muted text-center" style="padding: 2.5rem 1rem;">${emptyMsg}</td></tr>`;
       return;
@@ -162,18 +163,39 @@
 
     letters.forEach(letter => {
       const tr = document.createElement('tr');
-      const stNorm = (letter.status || 'Draft').toLowerCase().replace(' ', '_');
+      const stNorm = (letter.status || 'Draft').toLowerCase().replace(/\s+/g, '_');
 
-      tr.innerHTML = `
-        <td><strong>${escapeHtml(letter.letterNumber || '(Belum terbit)')}</strong></td>
-        <td>${escapeHtml(letter.templateType || '-')}</td>
-        <td>${escapeHtml(letter.drafterEmail || '-')}</td>
-        <td>
+      let statusBadgeHtml = '';
+      if (letter.status === 'Pending Upload') {
+        let daysInfo = '';
+        if (letter.reconciliationDeadline) {
+          const msLeft = new Date(letter.reconciliationDeadline).getTime() - Date.now();
+          const days = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+          daysInfo = `<div style="font-size: 0.7rem; color: #b45309; margin-top: 0.2rem; font-weight: 500;">Sisa ${days > 0 ? days : 0} hari</div>`;
+        }
+        statusBadgeHtml = `<div><span class="badge badge-pending_upload">Pending Upload</span>${daysInfo}</div>`;
+      } else if (letter.status === 'Expired') {
+        statusBadgeHtml = `<span class="badge badge-expired" title="Nomor dilepaskan ke antrean daur ulang">Expired</span>`;
+      } else if (letter.status === 'Cancelled') {
+        const reasonTip = letter.cancellationReason ? ` title="${escapeHtml(letter.cancellationReason)}"` : '';
+        statusBadgeHtml = `<span class="badge badge-cancelled"${reasonTip}>Cancelled</span>`;
+      } else {
+        statusBadgeHtml = `
           <span class="badge badge-${stNorm}">
             ${escapeHtml(letter.status)}
             ${letter.awaitingWetSignature ? ' (Scan Basah)' : ''}
           </span>
+        `;
+      }
+
+      tr.innerHTML = `
+        <td>
+          <strong>${escapeHtml(letter.letterNumber || '(Belum terbit)')}</strong>
+          ${letter.perihal ? `<div class="text-muted" style="font-size: 0.75rem; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(letter.perihal)}</div>` : ''}
         </td>
+        <td>${escapeHtml(letter.templateType || '-')}</td>
+        <td>${escapeHtml(letter.drafterEmail || '-')}</td>
+        <td>${statusBadgeHtml}</td>
         <td style="font-size: 0.85rem;">
           ${letter.currentTurnEmail ? `<span>${escapeHtml(letter.currentTurnEmail)}</span>` : '<span class="text-muted">-</span>'}
         </td>
@@ -182,7 +204,7 @@
         </td>
         <td class="text-right">
           <button class="btn btn-secondary" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;" onclick="navigateTo('detail', '${escapeHtml(letter.letterId)}')">
-            Buka Detail →
+            Buka Detail
           </button>
         </td>
       `;

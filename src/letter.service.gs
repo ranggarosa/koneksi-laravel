@@ -10,11 +10,17 @@ const letterService = {
   _injectedAuditLogRepo: null,
   _injectedNotificationService: null,
   _injectedDocumentService: null,
+  _injectedCounterRepo: null,
 
   get _letterRepo() {
     return this._injectedLetterRepo || (typeof letterRepository !== 'undefined' ? letterRepository : null);
   },
   set _letterRepo(repo) { this._injectedLetterRepo = repo; },
+
+  get _counterRepo() {
+    return this._injectedCounterRepo || (typeof counterRepository !== 'undefined' ? counterRepository : null);
+  },
+  set _counterRepo(repo) { this._injectedCounterRepo = repo; },
 
   get _numberingService() {
     return this._injectedNumberingService || (typeof numberingService !== 'undefined' ? numberingService : null);
@@ -32,6 +38,7 @@ const letterService = {
   set _auditLogRepo(repo) { this._injectedAuditLogRepo = repo; },
 
   setLetterRepository(repo) { this._injectedLetterRepo = repo; },
+  setCounterRepository(repo) { this._injectedCounterRepo = repo; },
   setNumberingService(svc) { this._injectedNumberingService = svc; },
   setUserRepository(repo) { this._injectedUserRepo = repo; },
   setAuditLogRepository(repo) { this._injectedAuditLogRepo = repo; },
@@ -258,6 +265,7 @@ const letterService = {
     return {
       letterId: letter.letterId,
       letterNumber: letter.letterNumber,
+      documentType: letter.documentType || DOCUMENT_TYPE.INTERNAL,
       templateType: letter.templateType,
       templateCode: letter.templateCode,
       contentData: letter.contentData,
@@ -268,6 +276,9 @@ const letterService = {
       isFinalApprover,
       awaitingWetSignature: letter.awaitingWetSignature,
       unsignedDriveFileId: letter.unsignedDriveFileId,
+      reconciliationDeadline: letter.reconciliationDeadline || null,
+      escalationSentAt: letter.escalationSentAt || null,
+      cancellationReason: letter.cancellationReason || null,
       finalPdfUrl: letter.finalPdfUrl,
       finalFileName: letter.finalFileName,
       createdAt: letter.createdAt,
@@ -556,7 +567,12 @@ const letterService = {
         break;
 
       case 'all_approved':
-        filtered = all.filter(l => l.status === LETTER_STATUS.APPROVED);
+        filtered = all.filter(l => (
+          l.status === LETTER_STATUS.APPROVED ||
+          l.status === LETTER_STATUS.PENDING_UPLOAD ||
+          l.status === LETTER_STATUS.EXPIRED ||
+          (l.status === LETTER_STATUS.CANCELLED && Boolean(l.letterNumber))
+        ));
         break;
 
       case 'all':
@@ -578,15 +594,725 @@ const letterService = {
       return {
         letterId: l.letterId,
         letterNumber: l.letterNumber,
+        documentType: l.documentType || DOCUMENT_TYPE.INTERNAL,
         templateType: l.templateType,
         templateCode: l.templateCode,
+        perihal: (l.contentData && l.contentData.perihal) || '',
         drafterEmail: l.drafterEmail,
         status: l.status,
         currentTurnEmail: active ? active.email : null,
         awaitingWetSignature: l.awaitingWetSignature,
+        reconciliationDeadline: l.reconciliationDeadline || null,
+        cancellationReason: l.cancellationReason || null,
+        finalPdfUrl: l.status === LETTER_STATUS.APPROVED ? l.finalPdfUrl : null,
         createdAt: l.createdAt,
         updatedAt: l.updatedAt
       };
     });
+  },
+
+  /**
+   * Submits a standalone take-number request for external/physical letters (Ambil Nomor).
+   * Validates metadata, strictly enforces no-backdating, and enforces separation of duties.
+   * @param {Object} currentUser
+   * @param {Object} payload
+   * @return {Object}
+   */
+  submitTakeNumberRequest(currentUser, payload) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+    if (currentUser.role !== ROLES.DRAFTER && currentUser.role !== ROLES.ADMIN) {
+      const err = new Error('Hanya pengguna dengan peran Drafter atau Admin yang dapat mengajukan nomor surat.');
+      err.code = 'UNAUTHORIZED_ROLE';
+      throw err;
+    }
+    if (!payload || typeof payload !== 'object') {
+      const err = new Error('Data permohonan nomor tidak valid.');
+      err.code = 'INVALID_PAYLOAD';
+      throw err;
+    }
+
+    const templateCode = (payload.templateCode || '').trim().toUpperCase();
+    const templateType = (payload.templateType || '').trim() || templateCode;
+    const contentData = payload.contentData || {};
+    const perihal = (contentData.perihal || '').trim();
+    const tujuan = (contentData.tujuan || '').trim();
+    const tanggalSurat = (contentData.tanggalSurat || '').trim();
+    const approver = payload.approver || {};
+    const approverEmail = (approver.email || '').toLowerCase().trim();
+
+    if (!templateCode) {
+      const err = new Error('Jenis surat wajib diisi.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    if (!perihal || !tujuan) {
+      const err = new Error('Perihal dan Tujuan surat wajib diisi.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    if (!tanggalSurat) {
+      const err = new Error('Tanggal surat wajib diisi.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    if (!Utils.isTodayDate(tanggalSurat)) {
+      const err = new Error('Tanggal surat harus merupakan tanggal hari ini (tanpa backdating/forward dating).');
+      err.code = 'INVALID_DATE';
+      throw err;
+    }
+    if (!approverEmail) {
+      const err = new Error('Approver wajib dipilih.');
+      err.code = 'VALIDATION_ERROR';
+      throw err;
+    }
+    if (approverEmail === currentUser.email.toLowerCase().trim()) {
+      const err = new Error('Pemohon dilarang memilih dirinya sendiri sebagai Approver (separation of duties).');
+      err.code = 'SELF_APPROVAL_FORBIDDEN';
+      throw err;
+    }
+
+    const letterId = Utils.generateUuid();
+    const sanitizedContent = {
+      perihal: Utils.sanitizeForSheets(perihal),
+      tujuan: Utils.sanitizeForSheets(tujuan),
+      tanggalSurat: Utils.sanitizeForSheets(tanggalSurat)
+    };
+
+    const approvalFlow = [
+      {
+        order: 1,
+        email: approverEmail,
+        name: (approver.name || approverEmail).trim(),
+        role: ROLES.APPROVER,
+        status: FLOW_STATUS.PENDING,
+        decisionAt: null,
+        notes: ''
+      }
+    ];
+
+    const letterRecord = {
+      letterId,
+      letterNumber: '',
+      documentType: DOCUMENT_TYPE.EXTERNAL,
+      templateType,
+      templateCode,
+      googleDocTemplateId: '',
+      contentData: sanitizedContent,
+      status: LETTER_STATUS.IN_REVIEW,
+      drafterEmail: currentUser.email.toLowerCase().trim(),
+      approvalFlow,
+      signatureMethod: null,
+      awaitingWetSignature: false,
+      unsignedDriveFileId: null,
+      unsignedDraftBaseRevisionId: null,
+      reconciliationDeadline: null,
+      escalationSentAt: null,
+      cancellationReason: null,
+      finalPdfUrl: null,
+      finalFileName: null
+    };
+
+    const saved = this._letterRepo.save(letterRecord);
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.SUBMIT_TAKE_NUMBER,
+      `Pengajuan permohonan nomor surat eksternal: ${perihal}`
+    );
+
+    const notifSvc = this._getNotificationService();
+    if (notifSvc && typeof notifSvc.sendTakeNumberRequestNotification === 'function') {
+      try {
+        notifSvc.sendTakeNumberRequestNotification(saved, approvalFlow[0]);
+      } catch (e) {
+        console.warn('Gagal mengirim notifikasi permohonan nomor:', e.message);
+      }
+    }
+
+    return {
+      letterId: saved.letterId,
+      status: saved.status,
+      documentType: saved.documentType,
+      approverEmail,
+      message: 'Permohonan nomor surat berhasil diajukan dan menunggu persetujuan atasan.'
+    };
+  },
+
+  /**
+   * Allows Drafter to cancel their own external take-number request while in 'In Review' status.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @return {Object}
+   */
+  cancelTakeNumberByDrafter(currentUser, letterId) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    const isOwner = letter.drafterEmail.toLowerCase().trim() === currentUser.email.toLowerCase().trim();
+    const isAdmin = currentUser.role === ROLES.ADMIN;
+    if (!isOwner && !isAdmin) {
+      const err = new Error('Hanya pembuat permohonan yang berhak membatalkan permohonan ini.');
+      err.code = 'UNAUTHORIZED_ACCESS';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.IN_REVIEW) {
+      const err = new Error('Hanya permohonan berstatus In Review yang dapat dibatalkan oleh pemohon.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    letter.status = LETTER_STATUS.CANCELLED;
+    letter.cancellationReason = 'Permohonan dibatalkan mandiri oleh pemohon.';
+    const updated = this._letterRepo.save(letter);
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.CANCEL_TAKE_NUMBER_DRAFTER,
+      'Permohonan dibatalkan mandiri oleh pemohon sebelum diproses.'
+    );
+
+    return {
+      letterId: updated.letterId,
+      status: updated.status,
+      message: 'Permohonan berhasil dibatalkan oleh pemohon.'
+    };
+  },
+
+  /**
+   * Approves an external take-number request, allocates an official number atomically,
+   * sets status to 'Pending Upload', and initiates the 7-day reconciliation window.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @return {Object}
+   */
+  approveTakeNumberRequest(currentUser, letterId) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    if (letter.documentType !== DOCUMENT_TYPE.EXTERNAL) {
+      const err = new Error('Aksi ini khusus untuk permohonan nomor surat eksternal.');
+      err.code = 'INVALID_DOCUMENT_TYPE';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.IN_REVIEW) {
+      const err = new Error('Hanya permohonan berstatus In Review yang dapat disetujui.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    const userEmail = currentUser.email.toLowerCase().trim();
+    const designatedApproverEmail = (Array.isArray(letter.approvalFlow) && letter.approvalFlow[0])
+      ? letter.approvalFlow[0].email.toLowerCase().trim()
+      : '';
+    const isApprover = designatedApproverEmail === userEmail;
+    const isAdmin = currentUser.role === ROLES.ADMIN;
+
+    if (!isApprover && !isAdmin) {
+      const err = new Error('Hanya pejabat approver yang ditunjuk yang berhak menyetujui permohonan ini.');
+      err.code = 'UNAUTHORIZED_ACCESS';
+      throw err;
+    }
+
+    // Allocate official number atomically
+    const numberingResult = this._numberingService.allocateNumber(letter.templateCode);
+    const nowIso = new Date().toISOString();
+    const reconciliationDeadline = Utils.addCalendarDaysIso(nowIso, 7);
+
+    letter.letterNumber = numberingResult.formattedNumber;
+    letter.status = LETTER_STATUS.PENDING_UPLOAD;
+    letter.reconciliationDeadline = reconciliationDeadline;
+
+    if (Array.isArray(letter.approvalFlow) && letter.approvalFlow[0]) {
+      letter.approvalFlow[0].status = FLOW_STATUS.APPROVED;
+      letter.approvalFlow[0].decisionAt = nowIso;
+    }
+
+    const saved = this._letterRepo.save(letter);
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.APPROVE_TAKE_NUMBER,
+      `Persetujuan permohonan nomor surat eksternal. Nomor diterbitkan: ${saved.letterNumber} (Deadline: 7 hari).`
+    );
+
+    const notifSvc = this._getNotificationService();
+    if (notifSvc && typeof notifSvc.sendTakeNumberApprovalNotification === 'function') {
+      try {
+        notifSvc.sendTakeNumberApprovalNotification(saved, saved.drafterEmail);
+      } catch (e) {
+        console.warn('Gagal mengirim notifikasi persetujuan nomor:', e.message);
+      }
+    }
+
+    return {
+      letterId: saved.letterId,
+      letterNumber: saved.letterNumber,
+      status: saved.status,
+      reconciliationDeadline: saved.reconciliationDeadline,
+      isRecycled: Boolean(numberingResult.isRecycled)
+    };
+  },
+
+  /**
+   * Rejects an external take-number request with a mandatory reason.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @param {string} reason
+   * @return {Object}
+   */
+  rejectTakeNumberRequest(currentUser, letterId, reason) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      const err = new Error('Alasan penolakan permohonan wajib diisi minimal 5 karakter.');
+      err.code = 'REASON_REQUIRED';
+      throw err;
+    }
+
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    if (letter.documentType !== DOCUMENT_TYPE.EXTERNAL) {
+      const err = new Error('Aksi ini khusus untuk permohonan nomor surat eksternal.');
+      err.code = 'INVALID_DOCUMENT_TYPE';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.IN_REVIEW) {
+      const err = new Error('Hanya permohonan berstatus In Review yang dapat ditolak.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    const userEmail = currentUser.email.toLowerCase().trim();
+    const designatedApproverEmail = (Array.isArray(letter.approvalFlow) && letter.approvalFlow[0])
+      ? letter.approvalFlow[0].email.toLowerCase().trim()
+      : '';
+    const isApprover = designatedApproverEmail === userEmail;
+    const isAdmin = currentUser.role === ROLES.ADMIN;
+
+    if (!isApprover && !isAdmin) {
+      const err = new Error('Hanya pejabat approver yang ditunjuk yang berhak menolak permohonan ini.');
+      err.code = 'UNAUTHORIZED_ACCESS';
+      throw err;
+    }
+
+    const nowIso = new Date().toISOString();
+    const cleanReason = reason.trim();
+
+    letter.status = LETTER_STATUS.REJECTED;
+    letter.letterNumber = '';
+    letter.cancellationReason = cleanReason;
+
+    if (Array.isArray(letter.approvalFlow) && letter.approvalFlow[0]) {
+      letter.approvalFlow[0].status = FLOW_STATUS.REJECTED;
+      letter.approvalFlow[0].decisionAt = nowIso;
+      letter.approvalFlow[0].notes = cleanReason;
+    }
+
+    const saved = this._letterRepo.save(letter);
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.REJECT_TAKE_NUMBER,
+      `Penolakan permohonan nomor surat eksternal. Alasan: ${cleanReason}`
+    );
+
+    const notifSvc = this._getNotificationService();
+    if (notifSvc && typeof notifSvc.sendTakeNumberRejectionNotification === 'function') {
+      try {
+        notifSvc.sendTakeNumberRejectionNotification(saved, saved.drafterEmail, cleanReason);
+      } catch (e) {
+        console.warn('Gagal mengirim notifikasi penolakan nomor:', e.message);
+      }
+    }
+
+    return {
+      letterId: saved.letterId,
+      status: saved.status,
+      notes: cleanReason,
+      letterNumber: null
+    };
+  },
+
+  /**
+   * Helper to clean up orphaned Drive files during rollback (Task T034).
+   * @param {string} fileId
+   */
+  cleanupOrphanedDriveFile(fileId) {
+    if (!fileId) return;
+    try {
+      if (typeof DriveApp !== 'undefined') {
+        const file = DriveApp.getFileById(fileId);
+        if (file) file.setTrashed(true);
+      }
+    } catch (e) {
+      console.warn(`Gagal membersihkan berkas Drive ${fileId}:`, e.message);
+    }
+  },
+
+  /**
+   * Uploads final signed scan PDF for an external letter in 'Pending Upload' status.
+   * Transitions status to 'Approved'.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @param {{fileName: string, mimeType: string, base64: string}} fileData
+   * @return {Object}
+   */
+  uploadTakeNumberScan(currentUser, letterId, fileData) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+
+    if (!fileData || !fileData.base64) {
+      const err = new Error('Berkas scan PDF wajib disertakan.');
+      err.code = 'FILE_REQUIRED';
+      throw err;
+    }
+
+    const mime = (fileData.mimeType || '').toLowerCase();
+    const name = (fileData.fileName || '').toLowerCase();
+    if (mime !== 'application/pdf' && !name.endsWith('.pdf')) {
+      const err = new Error('Berkas scan harus berformat PDF (.pdf).');
+      err.code = 'INVALID_MIME_TYPE';
+      throw err;
+    }
+
+    // Base64 size check (10 MB ~ 13.3 MB base64 string)
+    const base64Len = fileData.base64.length;
+    const approximateBytes = Math.floor(base64Len * 0.75);
+    if (approximateBytes > 10 * 1024 * 1024) {
+      const err = new Error('Ukuran berkas scan melebihi batas maksimum 10 MB.');
+      err.code = 'FILE_TOO_LARGE';
+      throw err;
+    }
+
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    if (letter.documentType !== DOCUMENT_TYPE.EXTERNAL) {
+      const err = new Error('Aksi ini khusus untuk permohonan nomor surat eksternal.');
+      err.code = 'INVALID_DOCUMENT_TYPE';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.PENDING_UPLOAD) {
+      const err = new Error('Hanya surat berstatus Pending Upload yang dapat diunggah berkas scannya.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    const userEmail = currentUser.email.toLowerCase().trim();
+    const isDrafter = letter.drafterEmail.toLowerCase().trim() === userEmail;
+    const isApprover = Array.isArray(letter.approvalFlow) && letter.approvalFlow.some(f => f.email.toLowerCase().trim() === userEmail);
+    const isAdmin = currentUser.role === ROLES.ADMIN;
+
+    if (!isDrafter && !isApprover && !isAdmin) {
+      const err = new Error('Anda tidak berwenang mengunggah berkas scan pada surat ini.');
+      err.code = 'UNAUTHORIZED_ACCESS';
+      throw err;
+    }
+
+    const cleanFileName = Utils.sanitizeFileName(fileData.fileName || `Scan_${letter.letterNumber.replace(/[\\/:*?"<>|]/g, '-')}.pdf`);
+    let createdDriveFileId = null;
+    let finalPdfUrl = '';
+
+    if (typeof DriveApp !== 'undefined' && typeof DriveApp.getRootFolder === 'function') {
+      try {
+        const docSvc = this._getDocumentService();
+        const folder = (docSvc && typeof docSvc.getLetterFolder === 'function') ? docSvc.getLetterFolder(letterId) : DriveApp.getRootFolder();
+        const decodedBytes = Utilities.base64Decode(fileData.base64);
+        const blob = Utilities.newBlob(decodedBytes, 'application/pdf', cleanFileName);
+        const file = folder.createFile(blob);
+        createdDriveFileId = file.getId();
+        finalPdfUrl = file.getUrl();
+      } catch (driveErr) {
+        throw new Error('Gagal menyimpan berkas scan ke Google Drive: ' + driveErr.message);
+      }
+    } else {
+      createdDriveFileId = `mock-scan-${letterId}`;
+      finalPdfUrl = `https://drive.google.com/file/d/${createdDriveFileId}/view`;
+    }
+
+    letter.finalPdfUrl = finalPdfUrl;
+    letter.finalFileName = cleanFileName;
+    letter.status = LETTER_STATUS.APPROVED;
+
+    let saved;
+    try {
+      saved = this._letterRepo.save(letter);
+    } catch (saveErr) {
+      if (createdDriveFileId) {
+        this.cleanupOrphanedDriveFile(createdDriveFileId);
+      }
+      throw saveErr;
+    }
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.UPLOAD_FINAL_SCAN,
+      `Unggah berkas scan PDF final: ${cleanFileName}. Surat sah dan berstatus Approved.`
+    );
+
+    return {
+      letterId: saved.letterId,
+      letterNumber: saved.letterNumber,
+      status: saved.status,
+      finalPdfUrl: saved.finalPdfUrl,
+      message: 'Berkas scan berhasil diunggah. Dokumen resmi telah sah dan terarsipkan.'
+    };
+  },
+
+  /**
+   * Allows Admin to replace the final scan PDF on an Approved external letter.
+   * Mandatory audit reason logged with REPLACE_FINAL_SCAN_ADMIN.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @param {{fileName: string, mimeType: string, base64: string}} fileData
+   * @param {string} reason
+   * @return {Object}
+   */
+  replaceTakeNumberScanAsAdmin(currentUser, letterId, fileData, reason) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+
+    if (currentUser.role !== ROLES.ADMIN) {
+      const err = new Error('Hanya Administrator yang berhak mengganti berkas scan pada surat yang telah disetujui.');
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length === 0) {
+      const err = new Error('Alasan penggantian berkas scan wajib diisi secara jelas.');
+      err.code = 'REASON_REQUIRED';
+      throw err;
+    }
+
+    if (!fileData || !fileData.base64) {
+      const err = new Error('Berkas scan PDF pengganti wajib disertakan.');
+      err.code = 'FILE_REQUIRED';
+      throw err;
+    }
+
+    const mime = (fileData.mimeType || '').toLowerCase();
+    const name = (fileData.fileName || '').toLowerCase();
+    if (mime !== 'application/pdf' && !name.endsWith('.pdf')) {
+      const err = new Error('Berkas scan harus berformat PDF (.pdf).');
+      err.code = 'INVALID_MIME_TYPE';
+      throw err;
+    }
+
+    const base64Len = fileData.base64.length;
+    const approximateBytes = Math.floor(base64Len * 0.75);
+    if (approximateBytes > 10 * 1024 * 1024) {
+      const err = new Error('Ukuran berkas scan melebihi batas maksimum 10 MB.');
+      err.code = 'FILE_TOO_LARGE';
+      throw err;
+    }
+
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    if (letter.documentType !== DOCUMENT_TYPE.EXTERNAL) {
+      const err = new Error('Aksi ini khusus untuk permohonan nomor surat eksternal.');
+      err.code = 'INVALID_DOCUMENT_TYPE';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.APPROVED) {
+      const err = new Error('Penggantian berkas scan khusus untuk surat berstatus Approved.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    const cleanFileName = Utils.sanitizeFileName(fileData.fileName || `Revisi_${letter.letterNumber.replace(/[\\/:*?"<>|]/g, '-')}.pdf`);
+    let createdDriveFileId = null;
+    let finalPdfUrl = '';
+
+    if (typeof DriveApp !== 'undefined' && typeof DriveApp.getRootFolder === 'function') {
+      try {
+        const docSvc = this._getDocumentService();
+        const folder = (docSvc && typeof docSvc.getLetterFolder === 'function') ? docSvc.getLetterFolder(letterId) : DriveApp.getRootFolder();
+        const decodedBytes = Utilities.base64Decode(fileData.base64);
+        const blob = Utilities.newBlob(decodedBytes, 'application/pdf', cleanFileName);
+        const file = folder.createFile(blob);
+        createdDriveFileId = file.getId();
+        finalPdfUrl = file.getUrl();
+      } catch (driveErr) {
+        throw new Error('Gagal menyimpan berkas scan pengganti ke Google Drive: ' + driveErr.message);
+      }
+    } else {
+      createdDriveFileId = `mock-scan-rev-${letterId}`;
+      finalPdfUrl = `https://drive.google.com/file/d/${createdDriveFileId}/view`;
+    }
+
+    letter.finalPdfUrl = finalPdfUrl;
+    letter.finalFileName = cleanFileName;
+
+    let saved;
+    try {
+      saved = this._letterRepo.save(letter);
+    } catch (saveErr) {
+      if (createdDriveFileId) {
+        this.cleanupOrphanedDriveFile(createdDriveFileId);
+      }
+      throw saveErr;
+    }
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.REPLACE_FINAL_SCAN_ADMIN,
+      `Penggantian berkas scan oleh Admin: ${cleanFileName}. Alasan: ${reason.trim()}`
+    );
+
+    return {
+      letterId: saved.letterId,
+      status: saved.status,
+      finalPdfUrl: saved.finalPdfUrl,
+      message: 'Berkas scan revisi berhasil diperbarui oleh Admin.'
+    };
+  },
+
+  /**
+   * Manually cancels an external take-number request in 'Pending Upload' status.
+   * Authorized for designated Approver or Admin only.
+   * Releases sequence number back to the recycled numbers pool.
+   * @param {Object} currentUser
+   * @param {string} letterId
+   * @param {string} reason
+   * @return {Object}
+   */
+  cancelTakeNumberManual(currentUser, letterId, reason) {
+    if (!currentUser || !currentUser.email) {
+      const err = new Error('Pengguna tidak terautentikasi.');
+      err.code = 'UNAUTHENTICATED';
+      throw err;
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 5) {
+      const err = new Error('Alasan pembatalan manual wajib diisi (minimal 5 karakter).');
+      err.code = 'REASON_REQUIRED';
+      throw err;
+    }
+
+    const letter = this._letterRepo.findById(letterId);
+    if (!letter) {
+      const err = new Error('Surat tidak ditemukan.');
+      err.code = 'LETTER_NOT_FOUND';
+      throw err;
+    }
+
+    if (letter.documentType !== DOCUMENT_TYPE.EXTERNAL) {
+      const err = new Error('Aksi ini khusus untuk permohonan nomor surat eksternal.');
+      err.code = 'INVALID_DOCUMENT_TYPE';
+      throw err;
+    }
+
+    if (letter.status !== LETTER_STATUS.PENDING_UPLOAD) {
+      const err = new Error('Hanya surat berstatus Pending Upload yang dapat dibatalkan manual.');
+      err.code = 'INVALID_STATUS_TRANSITION';
+      throw err;
+    }
+
+    const userEmail = currentUser.email.toLowerCase().trim();
+    const designatedApproverEmail = (Array.isArray(letter.approvalFlow) && letter.approvalFlow[0])
+      ? letter.approvalFlow[0].email.toLowerCase().trim()
+      : '';
+    const isApprover = designatedApproverEmail === userEmail;
+    const isAdmin = currentUser.role === ROLES.ADMIN;
+
+    if (!isApprover && !isAdmin) {
+      const err = new Error('Hanya Approver terkait atau Administrator yang berhak membatalkan nomor surat ini.');
+      err.code = 'UNAUTHORIZED_ACCESS';
+      throw err;
+    }
+
+    const cleanReason = reason.trim();
+    letter.status = LETTER_STATUS.CANCELLED;
+    letter.cancellationReason = cleanReason;
+
+    // Release sequence number back to the original month's recycled pool
+    let recycled = false;
+    if (letter.letterNumber) {
+      const parsed = Utils.parseLetterNumberParts(letter.letterNumber);
+      if (parsed && this._counterRepo && typeof this._counterRepo.releaseNumberToRecycledPool === 'function') {
+        this._counterRepo.releaseNumberToRecycledPool(
+          parsed.templateCode,
+          parsed.sequence,
+          parsed.month,
+          parsed.year
+        );
+        recycled = true;
+      }
+    }
+
+    const saved = this._letterRepo.save(letter);
+
+    this._auditLogRepo.logAction(
+      letterId,
+      currentUser.email,
+      AUDIT_ACTION.CANCEL_TAKE_NUMBER_MANUAL,
+      `Pembatalan manual nomor ${letter.letterNumber || ''} oleh ${currentUser.email}. Alasan: ${cleanReason}`
+    );
+
+    return {
+      letterId: saved.letterId,
+      letterNumber: saved.letterNumber,
+      status: saved.status,
+      recycled: recycled,
+      message: 'Nomor surat dibatalkan dan telah dilepas kembali ke antrean daur ulang.'
+    };
   }
 };

@@ -125,5 +125,85 @@ const Utils = {
       romanMonth: match[3],
       year: match[4]
     };
+  },
+
+  /**
+   * Converts Roman numeral month to integer (1-12).
+   * @param {string} roman
+   * @return {number}
+   */
+  getMonthFromRoman(roman) {
+    const map = {
+      'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5, 'VI': 6,
+      'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10, 'XI': 11, 'XII': 12
+    };
+    const m = map[(roman || '').toUpperCase().trim()];
+    if (!m) {
+      throw new Error(`Angka romawi bulan tidak valid: ${roman}`);
+    }
+    return m;
+  },
+
+  /**
+   * Calculates calendar day difference between two dates (toDate - fromDate).
+   * @param {Date|string} fromDate
+   * @param {Date|string} toDate
+   * @return {number}
+   */
+  calculateCalendarDaysDiff(fromDate, toDate) {
+    const f = fromDate instanceof Date ? fromDate : new Date(fromDate);
+    const t = toDate instanceof Date ? toDate : new Date(toDate);
+    const utc1 = Date.UTC(f.getFullYear(), f.getMonth(), f.getDate());
+    const utc2 = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+    return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+  },
+
+  /**
+   * Adds calendar days to an ISO date and returns new ISO 8601 string.
+   * @param {string|Date} isoDate
+   * @param {number} days
+   * @return {string}
+   */
+  addCalendarDaysIso(isoDate, days) {
+    const d = isoDate instanceof Date ? new Date(isoDate.getTime()) : new Date(isoDate || new Date());
+    d.setDate(d.getDate() + days);
+    return d.toISOString();
+  },
+
+  /**
+   * Strict current date validator. Ensures dateString matches today's date formatted as YYYY-MM-DD.
+   * Prevents backdating and forward dating.
+   * @param {string} dateString
+   * @param {Date} [referenceDate] Optional reference date for testing
+   * @return {boolean}
+   */
+  isTodayDate(dateString, referenceDate) {
+    if (!dateString || typeof dateString !== 'string') return false;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateString.trim())) return false;
+    const now = referenceDate instanceof Date ? referenceDate : new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${y}-${m}-${d}`;
+    return dateString.trim() === todayStr;
+  },
+
+  /**
+   * Parses official letter number and extracts sequence integer, templateCode, romanMonth, month integer, and year integer.
+   * Example: '0005.ST/IX/2026' -> { sequence: 5, sequenceStr: '0005', templateCode: 'ST', romanMonth: 'IX', month: 9, year: 2026 }
+   * @param {string} letterNumber
+   * @return {{sequence: number, sequenceStr: string, templateCode: string, romanMonth: string, month: number, year: number}|null}
+   */
+  parseLetterNumberParts(letterNumber) {
+    const parsed = this.parseLetterNumber(letterNumber);
+    if (!parsed) return null;
+    return {
+      sequence: parseInt(parsed.sequence, 10),
+      sequenceStr: parsed.sequence,
+      templateCode: parsed.templateCode,
+      romanMonth: parsed.romanMonth,
+      month: this.getMonthFromRoman(parsed.romanMonth),
+      year: parseInt(parsed.year, 10)
+    };
   }
 };

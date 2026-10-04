@@ -121,5 +121,19 @@ const counterRepository = {
     }
 
     return this.saveCounter(counter);
+  },
+
+  /**
+   * Releases a sequence number to the recycled pool of its original allocation period counter.
+   * Supports cross-month recycling by explicitly targeting original allocation month and year.
+   * @param {string} templateCode
+   * @param {number|string} sequenceNumber
+   * @param {number|string} month
+   * @param {number|string} year
+   * @return {Object} updated counter
+   */
+  releaseNumberToRecycledPool(templateCode, sequenceNumber, month, year) {
+    const seqStr = String(sequenceNumber).padStart(4, '0');
+    return this.addRecycledNumber(templateCode, parseInt(month, 10), parseInt(year, 10), seqStr);
   }
 };

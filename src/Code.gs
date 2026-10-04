@@ -53,25 +53,7 @@ function setupDatabase() {
   sheetRepository.getSheet(SHEET_NAMES.USERS, userRepository.headers);
 
   // 2. Letters Sheet
-  sheetRepository.getSheet(SHEET_NAMES.LETTERS, [
-    'letterId',
-    'letterNumber',
-    'templateType',
-    'templateCode',
-    'googleDocTemplateId',
-    'contentData',
-    'status',
-    'drafterEmail',
-    'approvalFlow',
-    'signatureMethod',
-    'awaitingWetSignature',
-    'unsignedDriveFileId',
-    'unsignedDraftBaseRevisionId',
-    'finalPdfUrl',
-    'finalFileName',
-    'createdAt',
-    'updatedAt'
-  ]);
+  sheetRepository.getSheet(SHEET_NAMES.LETTERS, letterRepository.headers);
 
   // 3. Counters Sheet
   sheetRepository.getSheet(SHEET_NAMES.COUNTERS, counterRepository.headers);
@@ -81,4 +63,29 @@ function setupDatabase() {
 
   console.log('Inisialisasi database Google Sheets berhasil diselesaikan.');
   return 'SETUP_COMPLETED';
+}
+
+/**
+ * Installs a daily time-driven trigger for automated reconciliation auditing.
+ * Executes runDailyReconciliationAudit every day between 01:00 and 02:00.
+ */
+function installDailyReconciliationTrigger() {
+  if (typeof ScriptApp !== 'undefined' && typeof ScriptApp.getProjectTriggers === 'function') {
+    const existing = ScriptApp.getProjectTriggers();
+    for (const trigger of existing) {
+      if (trigger.getHandlerFunction() === 'runDailyReconciliationAudit') {
+        ScriptApp.deleteTrigger(trigger);
+      }
+    }
+
+    ScriptApp.newTrigger('runDailyReconciliationAudit')
+      .timeBased()
+      .everyDays(1)
+      .atHour(1)
+      .create();
+
+    console.log('Trigger rekonsiliasi harian berhasil dipasang.');
+    return 'TRIGGER_INSTALLED';
+  }
+  return 'SCRIPT_APP_NOT_AVAILABLE';
 }

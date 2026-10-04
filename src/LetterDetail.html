@@ -1,7 +1,7 @@
 <div class="card">
   <div class="card-header">
     <div class="d-flex align-center gap-2">
-      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">← Dashboard</button>
+      <button class="btn btn-secondary" style="padding: 0.4rem 0.8rem;" onclick="navigateTo('dashboard')">Dashboard</button>
       <h2 id="detail-letter-number" class="card-title mb-0">Memuat Detail Naskah...</h2>
       <span id="detail-letter-status" class="badge">...</span>
     </div>
@@ -36,7 +36,7 @@
         </p>
         <div class="d-flex gap-2 align-center mt-2 mb-2">
           <a id="link-unsigned-doc" href="#" target="_blank" class="btn btn-secondary">
-            Buka Draf Google Docs di Google Drive ↗
+            Buka Draf Google Docs di Google Drive
           </a>
         </div>
         
@@ -51,6 +51,60 @@
       </div>
     </div>
 
+    <!-- External Letter: In Review Info Notice -->
+    <div id="alert-external-in-review" class="alert alert-info" style="display: none;">
+      <div>
+        <strong>Permohonan Nomor Surat Eksternal (Menunggu Persetujuan)</strong>
+        <p style="margin-top: 0.25rem;">Permohonan nomor surat fisik/eksternal sedang menunggu keputusan persetujuan pejabat approver. Dokumen dicetak dan ditandatangani fisik setelah nomor resmi dialokasikan.</p>
+      </div>
+    </div>
+
+    <!-- External Letter: Pending Upload Banner -->
+    <div id="alert-pending-upload" class="alert alert-warning" style="display: none;">
+      <div style="width: 100%;">
+        <div class="d-flex justify-between align-center">
+          <div>
+            <strong style="color: #92400e; font-size: 1.05rem;">Nomor Resmi Telah Diterbitkan (Pending Upload)</strong>
+            <p style="margin-top: 0.25rem;">
+              Nomor resmi dinas: <strong id="pending-allocated-number" style="font-size: 1.15rem; color: #1e40af;"></strong>
+            </p>
+          </div>
+          <div id="pending-deadline-badge" class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fcd34d; font-size: 0.9rem; padding: 0.5rem 0.75rem;">
+            <!-- Countdown / Deadline -->
+          </div>
+        </div>
+        <p class="text-muted" style="font-size: 0.85rem; margin-top: 0.5rem;">
+          Surat fisik wajib dicetak, ditandatangani basah, dan diunggah berkas scan PDF-nya ke sistem sebelum batas waktu rekonsiliasi.
+        </p>
+
+        <!-- Form Unggah Berkas Scan Ambil Nomor -->
+        <div id="tn-scan-upload-section" style="background: white; padding: 1rem; border-radius: var(--radius-md); border: 1px solid #fde68a; margin-top: 1rem;">
+          <h4 style="font-size: 0.9rem; margin-bottom: 0.5rem; color: #92400e;">Unggah Berkas Scan PDF Bertanda Tangan Sah</h4>
+          <input type="file" id="tn-scan-file-input" class="form-control" accept="application/pdf" style="margin-bottom: 0.75rem;">
+          <p class="text-muted" style="font-size: 0.75rem; margin-bottom: 0.75rem;">Format wajib: PDF (.pdf), ukuran maksimal: 10 MB.</p>
+          <button type="button" id="btn-upload-tn-scan" class="btn btn-primary" onclick="handleTakeNumberScanUpload()">
+            Unggah Berkas Scan PDF & Sahkan Surat
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- External Letter: Cancelled Alert -->
+    <div id="alert-cancelled" class="alert alert-secondary" style="display: none; background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569;">
+      <div>
+        <strong style="color: #334155;">Permohonan Surat Dibatalkan (Cancelled)</strong>
+        <p id="cancelled-reason-text" style="margin-top: 0.25rem;">Permohonan ini telah dibatalkan.</p>
+      </div>
+    </div>
+
+    <!-- External Letter: Expired Alert -->
+    <div id="alert-expired" class="alert alert-secondary" style="display: none; background: #f1f5f9; border: 1px solid #cbd5e1; color: #475569;">
+      <div>
+        <strong style="color: #334155;">Nomor Surat Kedaluwarsa (Expired)</strong>
+        <p style="margin-top: 0.25rem;">Batas waktu rekonsiliasi 7 hari kalender telah terlampaui tanpa berkas scan yang diunggah. Nomor surat resmi telah dilepaskan kembali ke antrean daur ulang.</p>
+      </div>
+    </div>
+
     <!-- Approved Final Notice -->
     <div id="alert-approved" class="alert alert-success" style="display: none;">
       <div class="d-flex justify-between align-center" style="width: 100%;">
@@ -58,19 +112,28 @@
           <strong>Surat Telah Sah & Disetujui (Approved)</strong>
           <p style="margin-top: 0.25rem;">Naskah telah selesai melalui seluruh rangkaian persetujuan dan sah sebagai arsip resmi dinas.</p>
         </div>
-        <a id="btn-download-final-pdf" href="#" target="_blank" class="btn btn-success">
-          Unduh PDF Final Resmi ↗
-        </a>
+        <div class="d-flex gap-2 align-center">
+          <a id="btn-download-final-pdf" href="#" target="_blank" class="btn btn-success">
+            Unduh PDF Final Resmi
+          </a>
+          <button id="btn-admin-replace-scan" class="btn btn-secondary" style="display: none;" onclick="openAdminReplaceModal()">
+            Ganti Berkas Scan (Admin)
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Letter Information Grid -->
     <div class="card" style="background: #f8fafc; border: 1px solid var(--border); box-shadow: none;">
       <h3 style="font-size: 1rem; margin-bottom: 1rem; color: #1e293b;">Metadata & Ringkasan Surat</h3>
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; font-size: 0.875rem;">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.875rem;">
         <div>
           <span class="text-muted" style="display: block;">Jenis Surat</span>
           <strong id="meta-template-type">-</strong>
+        </div>
+        <div>
+          <span class="text-muted" style="display: block;">Tipe Naskah</span>
+          <strong id="meta-document-type">-</strong>
         </div>
         <div>
           <span class="text-muted" style="display: block;">Pembuat Draf (Drafter)</span>
@@ -83,6 +146,10 @@
         <div>
           <span class="text-muted" style="display: block;">Pembaruan Terakhir</span>
           <strong id="meta-updated-at">-</strong>
+        </div>
+        <div id="meta-deadline-wrapper" style="display: none;">
+          <span class="text-muted" style="display: block;">Tenggat Rekonsiliasi</span>
+          <strong id="meta-reconciliation-deadline" style="color: #b45309;">-</strong>
         </div>
       </div>
     </div>
@@ -140,7 +207,7 @@
   <div class="modal-dialog">
     <div class="modal-header">
       <h3 style="font-size: 1.1rem; font-weight: 700;">Setujui Naskah Surat</h3>
-      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-approve')">✕</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-approve')">&times;</button>
     </div>
     <div class="modal-body">
       <div class="form-group">
@@ -185,7 +252,7 @@
   <div class="modal-dialog">
     <div class="modal-header">
       <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--danger);">Tolak Draf Surat</h3>
-      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-reject')">✕</button>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-reject')">&times;</button>
     </div>
     <div class="modal-body">
       <div class="alert alert-danger">
@@ -200,6 +267,60 @@
       <button class="btn btn-secondary" onclick="closeModal('modal-reject')">Batal</button>
       <button id="btn-confirm-reject" class="btn btn-danger" onclick="submitDecision('reject')">
         Konfirmasi Penolakan Permanen
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Manual Cancel Take Number (Approver/Admin) -->
+<div id="modal-manual-cancel" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--danger);">Batalkan Nomor Surat (Pending Upload)</h3>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-manual-cancel')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-danger">
+        <strong>Konfirmasi Pembatalan:</strong> Nomor surat yang telah diterbitkan akan dibatalkan, status dialihkan ke <em>Cancelled</em>, dan nomor urut akan dilepaskan kembali ke antrean daur ulang sistem.
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="manual-cancel-reason">Alasan Pembatalan <span style="color: var(--danger);">*</span></label>
+        <textarea id="manual-cancel-reason" class="form-control" required placeholder="Wajib mengisi alasan pembatalan nomor surat..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-manual-cancel')">Tutup</button>
+      <button id="btn-confirm-manual-cancel" class="btn btn-danger" onclick="submitManualCancel()">
+        Batalkan Nomor Surat
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Admin Replace Scan PDF (Admin only) -->
+<div id="modal-admin-replace-scan" class="modal-backdrop">
+  <div class="modal-dialog">
+    <div class="modal-header">
+      <h3 style="font-size: 1.1rem; font-weight: 700; color: #1e40af;">Penggantian Berkas Scan Dokumen Sah (Admin)</h3>
+      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem;" onclick="closeModal('modal-admin-replace-scan')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info">
+        <strong>Hak Akses Khusus Admin:</strong> Anda dapat mengganti berkas scan PDF pengganti untuk surat yang telah berstatus Approved. Alasan penggantian wajib diisi dan akan dicatat secara permanen di log audit sistem.
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-replace-file">Pilih Berkas Scan PDF Pengganti (Maks 10 MB) <span style="color: var(--danger);">*</span></label>
+        <input type="file" id="admin-replace-file" class="form-control" accept="application/pdf" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="admin-replace-reason">Alasan Penggantian Berkas <span style="color: var(--danger);">*</span></label>
+        <textarea id="admin-replace-reason" class="form-control" required placeholder="Contoh: Koreksi lampiran halaman 2 yang terpotong saat pemindaian awal..."></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-admin-replace-scan')">Batal</button>
+      <button id="btn-confirm-admin-replace" class="btn btn-primary" onclick="submitAdminReplaceScan()">
+        Simpan Berkas Pengganti
       </button>
     </div>
   </div>
@@ -241,28 +362,79 @@
    * @param {Object} letter
    */
   function renderLetterDetail(letter) {
-    document.getElementById('detail-letter-number').textContent = letter.letterNumber || '(Belum bernomor)';
+    if (letter.letterNumber) {
+      document.getElementById('detail-letter-number').textContent = letter.letterNumber;
+    } else if (letter.documentType === 'EXTERNAL' && letter.status === 'In Review') {
+      document.getElementById('detail-letter-number').textContent = '(Menunggu Otorisasi Nomor)';
+    } else {
+      document.getElementById('detail-letter-number').textContent = '(Belum bernomor)';
+    }
     
     // Status Badge
     const statusBadge = document.getElementById('detail-letter-status');
-    const stNorm = (letter.status || 'Draft').toLowerCase().replace(' ', '_');
+    const stNorm = (letter.status || 'Draft').toLowerCase().replace(/\s+/g, '_');
     statusBadge.className = `badge badge-${stNorm}`;
     statusBadge.textContent = letter.status;
 
     // Metadata
     document.getElementById('meta-template-type').textContent = letter.templateType || '-';
+    const docTypeEl = document.getElementById('meta-document-type');
+    if (docTypeEl) docTypeEl.textContent = letter.documentType === 'EXTERNAL' ? 'Eksternal / Fisik' : 'Internal';
     document.getElementById('meta-drafter-email').textContent = letter.drafterEmail || '-';
     document.getElementById('meta-created-at').textContent = letter.createdAt ? new Date(letter.createdAt).toLocaleString('id-ID') : '-';
     document.getElementById('meta-updated-at').textContent = letter.updatedAt ? new Date(letter.updatedAt).toLocaleString('id-ID') : '-';
+
+    const deadlineWrapper = document.getElementById('meta-deadline-wrapper');
+    if (deadlineWrapper) {
+      if (letter.reconciliationDeadline) {
+        deadlineWrapper.style.display = 'block';
+        document.getElementById('meta-reconciliation-deadline').textContent = new Date(letter.reconciliationDeadline).toLocaleString('id-ID');
+      } else {
+        deadlineWrapper.style.display = 'none';
+      }
+    }
 
     // Alerts
     const alertRejected = document.getElementById('alert-rejected');
     const alertWet = document.getElementById('alert-wet-signature');
     const alertApproved = document.getElementById('alert-approved');
+    const alertExternalInReview = document.getElementById('alert-external-in-review');
+    const alertPendingUpload = document.getElementById('alert-pending-upload');
+    const alertCancelled = document.getElementById('alert-cancelled');
+    const alertExpired = document.getElementById('alert-expired');
 
-    alertRejected.style.display = letter.status === 'Rejected' ? 'block' : 'none';
-    alertWet.style.display = letter.awaitingWetSignature ? 'block' : 'none';
-    alertApproved.style.display = letter.status === 'Approved' ? 'block' : 'none';
+    if (alertRejected) alertRejected.style.display = letter.status === 'Rejected' ? 'block' : 'none';
+    if (alertWet) alertWet.style.display = (letter.documentType !== 'EXTERNAL' && letter.awaitingWetSignature) ? 'block' : 'none';
+    if (alertApproved) alertApproved.style.display = letter.status === 'Approved' ? 'block' : 'none';
+    if (alertExternalInReview) alertExternalInReview.style.display = (letter.documentType === 'EXTERNAL' && letter.status === 'In Review') ? 'block' : 'none';
+    
+    if (alertCancelled) {
+      alertCancelled.style.display = letter.status === 'Cancelled' ? 'block' : 'none';
+      const reasonEl = document.getElementById('cancelled-reason-text');
+      if (reasonEl) reasonEl.textContent = letter.cancellationReason || 'Permohonan dibatalkan.';
+    }
+    if (alertExpired) alertExpired.style.display = letter.status === 'Expired' ? 'block' : 'none';
+
+    if (alertPendingUpload) {
+      alertPendingUpload.style.display = letter.status === 'Pending Upload' ? 'block' : 'none';
+      if (letter.status === 'Pending Upload') {
+        const numEl = document.getElementById('pending-allocated-number');
+        if (numEl) numEl.textContent = letter.letterNumber;
+
+        const badge = document.getElementById('pending-deadline-badge');
+        if (badge && letter.reconciliationDeadline) {
+          const msLeft = new Date(letter.reconciliationDeadline).getTime() - Date.now();
+          const daysLeft = Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+          if (daysLeft > 1) {
+            badge.textContent = `Sisa Waktu: ${daysLeft} hari kalender`;
+          } else if (daysLeft === 1) {
+            badge.textContent = 'Sisa Waktu: 1 hari kalender (H-1)';
+          } else {
+            badge.textContent = 'Masa Rekonsiliasi Berakhir Hari Ini';
+          }
+        }
+      }
+    }
 
     if (letter.awaitingWetSignature && letter.unsignedDriveFileId) {
       document.getElementById('link-unsigned-doc').href = `https://docs.google.com/document/d/${letter.unsignedDriveFileId}/edit`;
@@ -272,26 +444,75 @@
       document.getElementById('btn-download-final-pdf').href = letter.finalPdfUrl;
     }
 
+    const btnAdminReplace = document.getElementById('btn-admin-replace-scan');
+    if (btnAdminReplace) {
+      btnAdminReplace.style.display = (letter.documentType === 'EXTERNAL' && letter.status === 'Approved' && AppState.currentUser && AppState.currentUser.role === 'admin') ? 'inline-block' : 'none';
+    }
+
     // Action buttons in header
     const actionsContainer = document.getElementById('detail-header-actions');
     actionsContainer.innerHTML = '';
 
-    if (letter.canAct && letter.status === 'In Review') {
-      const btnReject = document.createElement('button');
-      btnReject.className = 'btn btn-danger';
-      btnReject.textContent = 'Tolak Draf';
-      btnReject.onclick = () => openModal('modal-reject');
+    const myEmail = (AppState.currentUser ? AppState.currentUser.email : '').toLowerCase().trim();
+    const isDrafter = letter.drafterEmail.toLowerCase().trim() === myEmail;
+    const isAdmin = AppState.currentUser && AppState.currentUser.role === 'admin';
 
-      const btnApprove = document.createElement('button');
-      btnApprove.className = 'btn btn-success';
-      btnApprove.textContent = letter.isFinalApprover ? 'Sahkan Surat' : 'Setujui (Approve)';
-      btnApprove.onclick = () => {
-        document.getElementById('final-approver-options').style.display = letter.isFinalApprover ? 'block' : 'none';
-        openModal('modal-approve');
-      };
+    if (letter.documentType === 'EXTERNAL') {
+      if (letter.status === 'In Review') {
+        if (isDrafter) {
+          const btnCancel = document.createElement('button');
+          btnCancel.className = 'btn btn-secondary';
+          btnCancel.textContent = 'Batalkan Permohonan';
+          btnCancel.onclick = () => cancelTakeNumberDrafter();
+          actionsContainer.appendChild(btnCancel);
+        }
+        if (letter.canAct) {
+          const btnReject = document.createElement('button');
+          btnReject.className = 'btn btn-danger';
+          btnReject.textContent = 'Tolak Permohonan';
+          btnReject.onclick = () => openModal('modal-reject');
 
-      actionsContainer.appendChild(btnReject);
-      actionsContainer.appendChild(btnApprove);
+          const btnApprove = document.createElement('button');
+          btnApprove.className = 'btn btn-success';
+          btnApprove.textContent = 'Setujui & Terbitkan Nomor';
+          btnApprove.onclick = () => {
+            const finalOpts = document.getElementById('final-approver-options');
+            if (finalOpts) finalOpts.style.display = 'none';
+            openModal('modal-approve');
+          };
+
+          actionsContainer.appendChild(btnReject);
+          actionsContainer.appendChild(btnApprove);
+        }
+      } else if (letter.status === 'Pending Upload') {
+        const isApproverOfRecord = Array.isArray(letter.approvalFlow) && letter.approvalFlow[0] && letter.approvalFlow[0].email.toLowerCase().trim() === myEmail;
+        if (isApproverOfRecord || isAdmin) {
+          const btnCancelManual = document.createElement('button');
+          btnCancelManual.className = 'btn btn-danger';
+          btnCancelManual.textContent = 'Batalkan Nomor Surat';
+          btnCancelManual.onclick = () => openManualCancelModal();
+          actionsContainer.appendChild(btnCancelManual);
+        }
+      }
+    } else {
+      if (letter.canAct && letter.status === 'In Review') {
+        const btnReject = document.createElement('button');
+        btnReject.className = 'btn btn-danger';
+        btnReject.textContent = 'Tolak Draf';
+        btnReject.onclick = () => openModal('modal-reject');
+
+        const btnApprove = document.createElement('button');
+        btnApprove.className = 'btn btn-success';
+        btnApprove.textContent = letter.isFinalApprover ? 'Sahkan Surat' : 'Setujui (Approve)';
+        btnApprove.onclick = () => {
+          const finalOpts = document.getElementById('final-approver-options');
+          if (finalOpts) finalOpts.style.display = letter.isFinalApprover ? 'block' : 'none';
+          openModal('modal-approve');
+        };
+
+        actionsContainer.appendChild(btnReject);
+        actionsContainer.appendChild(btnApprove);
+      }
     }
 
     // Render Content Data Table
@@ -405,7 +626,7 @@
 
     if (decision === 'approve') {
       notes = document.getElementById('approve-notes').value.trim();
-      if (currentLoadedLetter.isFinalApprover) {
+      if (currentLoadedLetter.isFinalApprover && currentLoadedLetter.documentType !== 'EXTERNAL') {
         const radios = document.getElementsByName('signatureMethod');
         for (const r of radios) {
           if (r.checked) signatureMethod = r.value;
@@ -423,6 +644,28 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner"></span> Memproses...';
 
+    // Handle 1-step external letter approval / rejection
+    if (currentLoadedLetter.documentType === 'EXTERNAL') {
+      const actionPromise = decision === 'approve'
+        ? callServer('approveTakeNumberRequest', currentLoadedLetter.letterId)
+        : callServer('rejectTakeNumberRequest', currentLoadedLetter.letterId, notes);
+
+      actionPromise
+        .then(res => {
+          closeModal(decision === 'approve' ? 'modal-approve' : 'modal-reject');
+          showToast(decision === 'approve' ? `Nomor resmi berhasil diterbitkan: ${res.letterNumber}` : 'Permohonan nomor surat ditolak.', 'success');
+          loadLetterDetail(currentLoadedLetter.letterId);
+        })
+        .catch(err => {
+          showToast('Gagal memproses keputusan: ' + err.message, 'danger');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = decision === 'approve' ? 'Konfirmasi Persetujuan' : 'Konfirmasi Penolakan Permanen';
+        });
+      return;
+    }
+
     callServer('decide', currentLoadedLetter.letterId, decision, notes, signatureMethod)
       .then(res => {
         closeModal(decision === 'approve' ? 'modal-approve' : 'modal-reject');
@@ -436,6 +679,178 @@
         btn.disabled = false;
         btn.innerHTML = decision === 'approve' ? 'Konfirmasi Persetujuan' : 'Konfirmasi Penolakan Permanen';
       });
+  }
+
+  /**
+   * Allows Drafter to cancel their pending external take-number request while In Review.
+   */
+  function cancelTakeNumberDrafter() {
+    if (!currentLoadedLetter) return;
+    if (!confirm('Apakah Anda yakin ingin membatalkan permohonan nomor surat ini?')) return;
+
+    callServer('cancelTakeNumberByDrafter', currentLoadedLetter.letterId)
+      .then(res => {
+        showToast('Permohonan nomor surat berhasil dibatalkan.', 'success');
+        loadLetterDetail(currentLoadedLetter.letterId);
+      })
+      .catch(err => {
+        showToast('Gagal membatalkan permohonan: ' + err.message, 'danger');
+      });
+  }
+
+  /**
+   * Opens manual cancel modal for Approver/Admin on Pending Upload letters.
+   */
+  function openManualCancelModal() {
+    const input = document.getElementById('manual-cancel-reason');
+    if (input) input.value = '';
+    openModal('modal-manual-cancel');
+  }
+
+  /**
+   * Submits manual cancellation of Pending Upload letter.
+   */
+  function submitManualCancel() {
+    if (!currentLoadedLetter) return;
+    const reason = (document.getElementById('manual-cancel-reason').value || '').trim();
+    if (!reason) {
+      showToast('Alasan pembatalan nomor surat wajib diisi!', 'danger');
+      return;
+    }
+
+    const btn = document.getElementById('btn-confirm-manual-cancel');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Membatalkan...';
+
+    callServer('cancelTakeNumberManual', currentLoadedLetter.letterId, reason)
+      .then(res => {
+        closeModal('modal-manual-cancel');
+        showToast(res.message || 'Nomor surat dibatalkan dan telah dilepas ke antrean daur ulang.', 'success');
+        loadLetterDetail(currentLoadedLetter.letterId);
+      })
+      .catch(err => {
+        showToast('Gagal membatalkan nomor surat: ' + err.message, 'danger');
+      })
+      .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = 'Batalkan Nomor Surat';
+      });
+  }
+
+  /**
+   * Opens modal for Admin to replace final scan PDF on Approved letters.
+   */
+  function openAdminReplaceModal() {
+    const fileInput = document.getElementById('admin-replace-file');
+    const reasonInput = document.getElementById('admin-replace-reason');
+    if (fileInput) fileInput.value = '';
+    if (reasonInput) reasonInput.value = '';
+    openModal('modal-admin-replace-scan');
+  }
+
+  /**
+   * Submits replacement scan PDF as Admin.
+   */
+  function submitAdminReplaceScan() {
+    if (!currentLoadedLetter) return;
+    const fileInput = document.getElementById('admin-replace-file');
+    const reason = (document.getElementById('admin-replace-reason').value || '').trim();
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      showToast('Pilih berkas scan PDF pengganti terlebih dahulu!', 'danger');
+      return;
+    }
+    const file = fileInput.files[0];
+    if (file.type !== 'application/pdf') {
+      showToast('Format berkas harus berupa dokumen PDF (.pdf)!', 'danger');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Ukuran berkas melebihi batas maksimum 10 MB!', 'danger');
+      return;
+    }
+    if (!reason) {
+      showToast('Alasan penggantian berkas wajib diisi!', 'danger');
+      return;
+    }
+
+    const btn = document.getElementById('btn-confirm-admin-replace');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Mengunggah...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result.split(',')[1];
+      const fileData = {
+        fileName: file.name,
+        mimeType: file.type,
+        base64: base64
+      };
+
+      callServer('replaceTakeNumberScanAsAdmin', currentLoadedLetter.letterId, fileData, reason)
+        .then(res => {
+          closeModal('modal-admin-replace-scan');
+          showToast(res.message || 'Berkas scan revisi berhasil diperbarui oleh Admin.', 'success');
+          loadLetterDetail(currentLoadedLetter.letterId);
+        })
+        .catch(err => {
+          showToast('Gagal mengganti berkas: ' + err.message, 'danger');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = 'Simpan Berkas Pengganti';
+        });
+    };
+    reader.readAsDataURL(file);
+  }
+
+  /**
+   * Handles uploading final signed scan PDF for Ambil Nomor.
+   */
+  function handleTakeNumberScanUpload() {
+    if (!currentLoadedLetter) return;
+    const fileInput = document.getElementById('tn-scan-file-input');
+    if (!fileInput.files || fileInput.files.length === 0) {
+      showToast('Pilih berkas scan PDF terlebih dahulu!', 'danger');
+      return;
+    }
+    const file = fileInput.files[0];
+    if (file.type !== 'application/pdf') {
+      showToast('Format berkas harus berupa dokumen PDF (.pdf)!', 'danger');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      showToast('Ukuran berkas melebihi batas maksimum 10 MB!', 'danger');
+      return;
+    }
+
+    const btn = document.getElementById('btn-upload-tn-scan');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Mengunggah Berkas Scan...';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const base64 = e.target.result.split(',')[1];
+      const fileData = {
+        fileName: file.name,
+        mimeType: file.type,
+        base64: base64
+      };
+
+      callServer('uploadTakeNumberScan', currentLoadedLetter.letterId, fileData)
+        .then(res => {
+          showToast(res.message || 'Berkas scan berhasil diunggah. Dokumen resmi telah sah!', 'success');
+          loadLetterDetail(currentLoadedLetter.letterId);
+        })
+        .catch(err => {
+          showToast('Gagal mengunggah scan: ' + err.message, 'danger');
+        })
+        .finally(() => {
+          btn.disabled = false;
+          btn.innerHTML = 'Unggah Berkas Scan PDF & Sahkan Surat';
+        });
+    };
+    reader.readAsDataURL(file);
   }
 
   /**

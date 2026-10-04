@@ -152,6 +152,10 @@ const TestUtils = {
         }
         this.saveCounter(counter);
         return counter;
+      },
+      releaseNumberToRecycledPool(templateCode, sequenceNumber, month, year) {
+        const seqStr = String(sequenceNumber).padStart(4, '0');
+        return this.addRecycledNumber(templateCode, parseInt(month, 10), parseInt(year, 10), seqStr);
       }
     };
   },
