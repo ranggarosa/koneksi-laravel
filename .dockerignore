@@ -1,0 +1,13 @@
+node_modules/
+vendor/
+.git/
+.dockerignore
+*.log
+.env
+.env.*
+!.env.example
+coverage/
+.phpunit.result.cache
+dist/
+build/
+storage/logs/*.log
