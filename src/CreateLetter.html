@@ -4,6 +4,17 @@
     <button class="btn btn-secondary" onclick="navigateTo('dashboard')">← Kembali ke Dashboard</button>
   </div>
 
+  <!-- Tab Navigation: Internal Draft vs Ambil Nomor Eksternal -->
+  <div class="tabs">
+    <div class="tab-item active" id="tab-internal-draft" onclick="switchCreateMode('internal')">
+      📄 Buat Draf Internal
+    </div>
+    <div class="tab-item" id="tab-take-number" onclick="switchCreateMode('take-number')">
+      🔢 Ambil Nomor Surat (Eksternal / Fisik)
+    </div>
+  </div>
+
+  <!-- FORM 1: Draf Internal -->
   <form id="create-letter-form" onsubmit="handleDraftSubmit(event)">
     <!-- 1. Pilihan Template -->
     <div class="form-group">
@@ -65,10 +76,101 @@
       </button>
     </div>
   </form>
+
+  <!-- FORM 2: Ambil Nomor Surat Eksternal -->
+  <form id="take-number-form" style="display: none;" onsubmit="handleTakeNumberSubmit(event)">
+    <div class="alert alert-info mb-3">
+      <strong>Informasi Ambil Nomor:</strong> Gunakan formulir ini untuk mereservasi nomor resmi surat fisik/eksternal yang dicetak dan ditandatangani di luar sistem. Nomor resmi akan diterbitkan setelah disetujui Approver. Rekonsiliasi berkas scan wajib dilakukan dalam 7 hari kalender.
+    </div>
+
+    <!-- 1. Pilihan Template -->
+    <div class="form-group">
+      <label class="form-label" for="tn-template-select">Pilih Jenis Surat <span style="color:var(--danger)">*</span></label>
+      <select id="tn-template-select" class="form-control" required>
+        <option value="">-- Pilih Jenis Surat --</option>
+        <option value="SP1" data-name="Surat Peringatan 1">Surat Peringatan 1 (SP1)</option>
+        <option value="ST" data-name="Surat Tugas">Surat Tugas (ST)</option>
+        <option value="SK" data-name="Surat Keputusan">Surat Keputusan (SK)</option>
+      </select>
+    </div>
+
+    <!-- 2. Perihal Surat -->
+    <div class="form-group">
+      <label class="form-label" for="tn-perihal">Perihal Surat <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="tn-perihal" class="form-control" required placeholder="Contoh: Undangan Koordinasi Monitoring Wilayah I">
+    </div>
+
+    <!-- 3. Tujuan Surat -->
+    <div class="form-group">
+      <label class="form-label" for="tn-tujuan">Tujuan Surat / Instansi Penerima <span style="color:var(--danger)">*</span></label>
+      <input type="text" id="tn-tujuan" class="form-control" required placeholder="Contoh: Kepala Balai Penjaminan Mutu Pendidikan">
+    </div>
+
+    <!-- 4. Tanggal Surat (Locked Today) -->
+    <div class="form-group">
+      <label class="form-label" for="tn-tanggal">Tanggal Surat (Terkunci Hari Ini) <span style="color:var(--danger)">*</span></label>
+      <input type="date" id="tn-tanggal" class="form-control" readonly required style="background: #f1f5f9; cursor: not-allowed;">
+      <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+        Kebijakan integritas penomoran: Tanggal surat terkunci ke hari ini (tanpa backdating atau forward dating).
+      </p>
+    </div>
+
+    <!-- 5. Seleksi Approver -->
+    <div class="form-group" style="margin-top: 1.5rem;">
+      <label class="form-label" for="tn-approver-select">Pejabat Pengesah (Approver) <span style="color: var(--danger);">*</span></label>
+      <select id="tn-approver-select" class="form-control" required>
+        <option value="">-- Pilih Approver --</option>
+      </select>
+      <p class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+        Approver yang ditunjuk akan memeriksa permohonan sebelum nomor resmi diterbitkan. Pembuat permohonan tidak dapat memilih diri sendiri (separation of duties).
+      </p>
+    </div>
+
+    <!-- 6. Tombol Aksi -->
+    <div class="d-flex justify-between align-center"
+      style="margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1.25rem;">
+      <button type="button" class="btn btn-secondary" onclick="navigateTo('dashboard')">Batal</button>
+      <button type="submit" id="btn-submit-take-number" class="btn btn-primary">
+        <span>Ajukan Permohonan Nomor</span>
+      </button>
+    </div>
+  </form>
 </div>
 
 <script>
   let availableCandidates = [];
+
+  function getTodayIsoDate() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  /**
+   * Toggles between Internal Draft and Ambil Nomor Eksternal forms.
+   */
+  function switchCreateMode(mode) {
+    const tabInternal = document.getElementById('tab-internal-draft');
+    const tabTakeNumber = document.getElementById('tab-take-number');
+    const formInternal = document.getElementById('create-letter-form');
+    const formTakeNumber = document.getElementById('take-number-form');
+
+    if (mode === 'take-number') {
+      if (tabInternal) tabInternal.classList.remove('active');
+      if (tabTakeNumber) tabTakeNumber.classList.add('active');
+      if (formInternal) formInternal.style.display = 'none';
+      if (formTakeNumber) formTakeNumber.style.display = 'block';
+      const tnTanggal = document.getElementById('tn-tanggal');
+      if (tnTanggal) tnTanggal.value = getTodayIsoDate();
+    } else {
+      if (tabTakeNumber) tabTakeNumber.classList.remove('active');
+      if (tabInternal) tabInternal.classList.add('active');
+      if (formTakeNumber) formTakeNumber.style.display = 'none';
+      if (formInternal) formInternal.style.display = 'block';
+    }
+  }
 
   /**
    * Initializes create letter form and loads candidates from server.
@@ -76,8 +178,15 @@
   function initCreateLetterForm() {
     const form = document.getElementById('create-letter-form');
     if (form) form.reset();
+    const tnForm = document.getElementById('take-number-form');
+    if (tnForm) tnForm.reset();
+
+    const tnTanggal = document.getElementById('tn-tanggal');
+    if (tnTanggal) tnTanggal.value = getTodayIsoDate();
+
     document.getElementById('dynamic-fields-container').style.display = 'none';
     document.getElementById('reviewers-list-container').innerHTML = '';
+    switchCreateMode('internal');
 
     callServer('listUsers')
       .then(users => {
@@ -95,9 +204,10 @@
 
   function populateApproverDropdown() {
     const approverSelect = document.getElementById('approver-select');
-    if (!approverSelect) return;
+    const tnApproverSelect = document.getElementById('tn-approver-select');
+    if (approverSelect) approverSelect.innerHTML = '<option value="">-- Pilih Approver Akhir --</option>';
+    if (tnApproverSelect) tnApproverSelect.innerHTML = '<option value="">-- Pilih Approver --</option>';
 
-    approverSelect.innerHTML = '<option value="">-- Pilih Approver Akhir --</option>';
     // Approvers or Admins
     const approvers = availableCandidates.filter(u => u.role === 'approver' || u.role === 'admin');
     approvers.forEach(u => {
@@ -106,7 +216,14 @@
       opt.textContent = `${u.name || u.email} (${u.email}) - ${u.role}`;
       opt.dataset.name = u.name || u.email;
       opt.dataset.role = u.role;
-      approverSelect.appendChild(opt);
+      if (approverSelect) approverSelect.appendChild(opt);
+
+      const tnOpt = document.createElement('option');
+      tnOpt.value = u.email;
+      tnOpt.textContent = `${u.name || u.email} (${u.email}) - ${u.role}`;
+      tnOpt.dataset.name = u.name || u.email;
+      tnOpt.dataset.role = u.role;
+      if (tnApproverSelect) tnApproverSelect.appendChild(tnOpt);
     });
   }
 
@@ -311,6 +428,78 @@
       .finally(() => {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<span>Terbitkan Nomor & Ajukan Draf</span>';
+      });
+  }
+
+  /**
+   * Submits take-number request for external/physical letters.
+   */
+  function handleTakeNumberSubmit(e) {
+    e.preventDefault();
+
+    const templateSelect = document.getElementById('tn-template-select');
+    const selectedOpt = templateSelect.options[templateSelect.selectedIndex];
+    const templateCode = templateSelect.value;
+    const templateType = selectedOpt.dataset.name || selectedOpt.text;
+
+    const perihal = document.getElementById('tn-perihal').value.trim();
+    const tujuan = document.getElementById('tn-tujuan').value.trim();
+    const tanggalSurat = document.getElementById('tn-tanggal').value.trim();
+
+    const approverSelect = document.getElementById('tn-approver-select');
+    const approverOpt = approverSelect.options[approverSelect.selectedIndex];
+
+    if (!templateCode) {
+      showToast('Pilih jenis surat terlebih dahulu!', 'danger');
+      return;
+    }
+    if (!perihal || !tujuan) {
+      showToast('Perihal dan Tujuan surat wajib diisi!', 'danger');
+      return;
+    }
+    if (!approverSelect.value) {
+      showToast('Pejabat Pengesah (Approver) wajib dipilih!', 'danger');
+      return;
+    }
+
+    const todayStr = getTodayIsoDate();
+    if (tanggalSurat !== todayStr) {
+      showToast('Tanggal surat harus merupakan tanggal hari ini (tanpa backdating).', 'danger');
+      return;
+    }
+
+    const approver = {
+      email: approverSelect.value,
+      name: approverOpt.dataset.name || approverSelect.value,
+      role: approverOpt.dataset.role || 'approver'
+    };
+
+    const payload = {
+      templateCode,
+      templateType,
+      contentData: {
+        perihal,
+        tujuan,
+        tanggalSurat
+      },
+      approver
+    };
+
+    const submitBtn = document.getElementById('btn-submit-take-number');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner"></span> <span>Mengajukan Permohonan...</span>';
+
+    callServer('submitTakeNumberRequest', payload)
+      .then(res => {
+        showToast(res.message || 'Permohonan nomor surat berhasil diajukan.', 'success');
+        navigateTo('detail', res.letterId);
+      })
+      .catch(err => {
+        showToast('Gagal mengajukan permohonan nomor: ' + err.message, 'danger');
+      })
+      .finally(() => {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>Ajukan Permohonan Nomor</span>';
       });
   }
 </script>
