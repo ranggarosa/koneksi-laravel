@@ -1,10 +1,17 @@
 <!--
 Sync Impact Report:
-- Version change: 1.0.0 → 1.1.0
+- Version change: 1.1.0 → 2.0.0
 - List of modified principles:
-  - Added VI. Professional UI Integrity & Global Emoji/Emote Prohibition
-- Added sections: None
-- Removed sections: None
+  - Modified I. Strict Layered Architecture & Unidirectional Data Flow (redefined from Google Apps Script to Laravel MVC, FormRequests, Services/Actions, and Eloquent Models)
+  - Modified II. Server-Side Single Source of Truth & Zero Trust Authorization (updated to Laravel Auth, Gates, Policies, and DB-level transactional validation)
+  - Modified III. Document Integrity & Atomic Sequence Numbering (updated concurrency protection to PostgreSQL transactions and pessimistic locking lockForUpdate)
+  - Modified IV. Test-Driven Verification of Critical Business Rules (updated to PHPUnit / Pest automated test suites)
+  - Modified V. Defensive Security, Modern Web Protection & Tamper-Evident Auditability (expanded with CSRF, mass assignment, parameterized PDO queries, and immutable audit logs)
+  - Maintained VI. Professional UI Integrity & Global Emoji/Emote Prohibition (enforced across Laravel Blade & Tailwind CSS)
+- Added sections:
+  - Technology Stack & Platform Architecture: Codified Laravel 11.x, Blade + Tailwind CSS, PostgreSQL (Heroku Postgres), and Heroku multi-buildpack deployment
+- Removed sections:
+  - Deprecated Phase 0 (Google Apps Script runtime, Sheets, and DriveApp) in favor of the active Laravel platform
 - Follow-up TODOs: None
 -->
 
@@ -12,119 +19,130 @@ Sync Impact Report:
 
 ## Core Principles
 
-### I. Strict Layered Architecture & Unidirectional Data Flow
-The system MUST adhere strictly to a 4-layer unidirectional architecture: `View (.html)` → `Controller (.gs)` → `Service (.gs)` → `Repository (.gs)` → External Services (`SpreadsheetApp`, `DriveApp`, `DocumentApp`, `MailApp`).
-- **View Layer**: Handles presentation and user interactions exclusively. Direct calls to repositories or business logic inside HTML templates are strictly prohibited.
-- **Controller Layer**: Mediates between UI and Service. Manages loading, error, and success states; invokes server-side authentication guards; and extracts request parameters. Controllers MUST NOT execute business logic or interact directly with persistence layers.
-- **Service Layer**: Houses all core business rules, multi-tier approval sequencing, numbering generation, and signature flow logic. Services MUST remain completely UI-agnostic and return pure data models or error structures.
-- **Repository Layer**: The sole layer permitted to call Google Workspace services (`SpreadsheetApp`, `DriveApp`, etc.). Repositories MUST only perform data retrieval and persistence operations without embedding business decision logic.
-- **Rationale**: Isolates business logic for headless testing without `HtmlService`, ensures clean separation of concerns, and simplifies future migration (e.g., swapping Sheets repositories for Firestore/Cloud SQL in Phase 1+ without rewriting service logic).
+### I. Strict Layered Architecture & Unidirectional Data Flow (Laravel MVC)
+The system MUST adhere strictly to a clean, layered architectural pattern in Laravel: `Blade View (.blade.php)` → `FormRequest / Controller` → `Service / Action Class` → `Eloquent Model / Repository` → `PostgreSQL Database`.
+- **View Layer**: Laravel Blade templates styled with Tailwind CSS. Blade templates handle presentation and user interactions exclusively. Direct database queries, raw business logic, or authorization determinations within Blade files are strictly prohibited.
+- **Request & Controller Layer**: FormRequests manage input validation and initial authorization gates. Controllers act as thin coordinators: they extract validated request payloads, invoke domain services, and return HTTP responses or view models. Controllers MUST NOT contain core business algorithms or raw SQL queries.
+- **Service / Action Layer**: Houses all domain business rules, multi-tier approval sequencing, numbering generation, PDF document compilation, and notification triggers. Services remain independent of HTTP transport, returning pure domain models, DTOs, or structured error results.
+- **Model & Persistence Layer**: Eloquent ORM Models and Database Migrations for PostgreSQL. Repositories or Query Scopes encapsulate data access. Business rules governing multi-record workflows MUST NOT be embedded directly inside model hook side-effects.
+- **Rationale**: Isolates business logic for headless testing via PHPUnit/Pest, ensures clean separation of concerns, and prevents high-traffic regressions.
 
 ### II. Server-Side Single Source of Truth & Zero Trust Authorization
-All security boundaries and access permissions MUST be validated server-side; client-side controls (such as hidden elements or disabled buttons) are strictly cosmetic conveniences.
-- **Authentication Guard**: Every controller function MUST invoke `authService.getCurrentUser()` to verify that the active Google session corresponds to an email explicitly registered and marked with `isActive = TRUE` in the `Users` whitelist. Non-whitelisted or deactivated accounts MUST be denied access immediately.
-- **Role Enforcement**: User actions MUST match assigned roles (e.g., only `drafter` may create drafts, only designated approvers may act on approvals, and only `admin` may manage users).
-- **Sequential Approval Integrity**: In a multi-step `approvalFlow`, approver $n$ can ONLY act if all preceding approvers $1 \dots n-1$ are already `approved`. The controller and service MUST independently re-verify this sequence rather than trusting client-provided state or indices.
+All security boundaries, role permissions, and workflow states MUST be validated server-side; client-side controls (such as hidden buttons or disabled form inputs) are strictly cosmetic conveniences.
+- **Authentication Guard**: Every authenticated route MUST be protected by standard Laravel authentication middleware (`auth` / `auth:web`). User sessions MUST correspond to an active record with `is_active = true`. Deactivated or unauthorized accounts MUST be rejected immediately.
+- **Role-Based Access Control (RBAC)**: User privileges MUST be verified using Laravel Gates and Policies according to assigned roles (e.g., `drafter` for creating drafts, `approver` for signing/rejecting assigned documents, `admin` for system management).
+- **Sequential Approval Integrity**: In a multi-step approval workflow (`approval_flow`), approver $n$ can ONLY act if all preceding approvers $1 \dots n-1$ have recorded `approved` status. The service layer MUST independently re-verify this sequence inside a database transaction rather than trusting client-provided state or indices.
 - **Terminal Rejection**: If any reviewer or approver rejects a letter, the workflow MUST terminate immediately, permanently mark the status as `Rejected`, capture mandatory revision notes, and prevent subsequent approvers from taking action.
-- **Rationale**: Prevents privilege escalation, unauthorized workflow bypassing, and ensures organizational compliance across sensitive HR letters.
+- **Rationale**: Prevents privilege escalation, unauthorized workflow bypassing, and guarantees regulatory compliance across administrative correspondence.
 
 ### III. Document Integrity & Atomic Sequence Numbering (Race Condition Immunity)
-Official documents represent legal commitments and MUST maintain rigorous data consistency, deterministic numbering, and verifiable signature integrity.
+Official documents represent institutional commitments and MUST maintain rigorous data consistency, deterministic numbering, and verifiable signature integrity.
 - **Deterministic Schema**: Letter numbers MUST follow the canonical format: `{sequence:04d}.{templateCode}/{bulanRomawi}/{tahun}`.
-- **Atomic Concurrency Protection**: Generation of letter numbers MUST be protected against race conditions using `LockService` on the `Counters` repository. Duplicate letter numbers are strictly prohibited.
+- **Atomic Concurrency Protection**: Generation of letter numbers MUST be protected against race conditions using PostgreSQL database transactions (`DB::transaction`) and pessimistic row locking (`lockForUpdate`) on the `counters` table. Duplicate letter numbers are strictly prohibited under any concurrency level.
 - **Date Partitioning**: Sequence counters MUST automatically partition and reset upon month and year boundary transitions.
 - **Dual Signature Finalization Paths**: The final approver MUST explicitly choose between:
-  1. **Digital Signature**: Injects authorized digital signature imagery into the document template and transitions status directly to `Approved` with a generated final PDF.
-  2. **Wet Signature**: Prepares the unsigned draft in a restricted Google Drive folder (`unsigned-draft`), retains status in review with `awaitingWetSignature = TRUE`, and MUST NOT transition to `Approved` until a new scanned physical document revision is verified via Drive API (`Files.update`).
-- **Rationale**: Letter numbers are legally binding identifiers. Duplicate numbering or premature approval of unsigned wet-signature documents undermines legal validity and organizational integrity.
+  1. **Digital Signature**: Injects authorized digital signature metadata/imagery, compiles the final PDF, and transitions status directly to `Approved`.
+  2. **Wet Signature**: Prepares the printable draft document, retains status with `awaiting_wet_signature = true`, and MUST NOT transition to `Approved` until a scanned, physically signed document upload is verified.
+- **Rationale**: Letter numbers are legally binding identifiers. Number collisions or premature approval of unsigned wet-signature documents compromises legal validity.
 
 ### IV. Test-Driven Verification of Critical Business Rules
-Because Google Apps Script lacks a native build-time test runner, critical business rules MUST be verified through structured, automated unit tests within the project.
-- **Decoupled Testability**: Services MUST use lightweight dependency injection to accept repository abstractions, allowing mock test execution without side effects on production Google Sheets or Drive files.
-- **Mandatory Test Suites**: Automated test files (`*.test.gs` / `Test*.gs`) with assertions (`assertEqual`, `assertTrue`, `assertThrows`) MUST provide 100% test coverage for the five critical operational scenarios:
-  1. Duplicate-free atomic sequence generation under concurrent load simulation (`numbering.service.gs`).
-  2. Sequential approval enforcement and immediate termination on rejection (`letter.service.gs`).
-  3. Signature branching behavior: instant approval for digital vs revision gate for wet signature (`letter.service.gs`).
-  4. Authentication whitelist verification and inactive user lockout (`auth.service.gs`).
-  5. Wet-signature scanned file revision existence verification (`document.service.gs`).
-- **Manual UAT Smoke Testing**: Automated unit tests MUST be complemented by a pre-deployment manual smoke test checklist covering full-lifecycle drafting, approval, and rejection before release.
-- **Rationale**: Prevents high-impact legal, numbering, or workflow regressions in an environment where standard CI/CD tooling is constrained.
+Critical business rules and core lifecycle workflows MUST be verified through structured, automated test suites (PHPUnit or Pest) before code reaches production.
+- **Decoupled Testability**: Services MUST accept dependency injection or database transactions, allowing rapid automated testing using Laravel's testing environment (`RefreshDatabase`).
+- **Mandatory Test Suites**: Automated tests MUST provide 100% test coverage for the five critical operational scenarios:
+  1. Duplicate-free atomic sequence number generation under concurrent load simulation.
+  2. Sequential approval enforcement and immediate termination on rejection.
+  3. Signature branching behavior: instant completion for digital vs upload verification gate for wet signature.
+  4. Authentication guards, role-based policies, and inactive user lockout.
+  5. Immutable audit log recording on every state transition.
+- **Rationale**: Prevents regressions in high-stakes numbering, legal, and authorization logic during continuous deployment to Heroku.
 
-### V. Defensive Security, Formula Injection Mitigation & Comprehensive Auditability
-All components MUST implement defensive programming to safeguard sensitive employee information and maintain tamper-evident audit trails.
-- **Formula Injection Mitigation**: Any user-provided string (e.g., employee names, NIK, form content, revision notes) MUST be sanitized or escaped (e.g., prefixing with `'` or rejecting unsafe patterns) before being written to Google Sheets cells to eliminate formula injection vectors (`=`, `+`, `-`, `@`).
-- **Least-Privilege Drive Sharing**: Draft documents for wet signature workflows MUST only be shared with the drafter and designated approval flow participants. Application root folders (`Templates/`, `Signatures/`, `Letters/`) MUST NEVER be made public ("Anyone with the link").
-- **Credential & Secret Protection**: All template IDs, folder IDs, and environment-specific settings MUST be stored in `PropertiesService` (Script Properties) and never committed to version control, steering files, or source code.
-- **Tamper-Evident Audit Logging**: Every state modification (`submitDraft`, `approve`, `reject`, `uploadSignature`, `verifyRevision`) MUST write an immutable record to the `ApprovalLog` repository containing timestamp, actor email, target letter ID, and transition metadata.
-- **Rationale**: Mitigates critical spreadsheet-based injection vulnerabilities, safeguards personal employee data, and provides legally defensible auditability.
+### V. Defensive Security, Modern Web Protection & Comprehensive Auditability
+All components MUST implement defensive programming to safeguard sensitive personnel information and maintain tamper-evident audit trails.
+- **Modern Web Security**: All form submissions and state-mutating requests MUST include valid CSRF tokens (`VerifyCsrfToken`). All database interactions MUST use Eloquent or PDO parameterized queries to eliminate SQL injection vectors. Mass assignment MUST be prevented using explicit `$fillable` model definitions.
+- **Sanitization & Escaping**: All user-provided strings (employee names, NIK, form content, revision notes) MUST be sanitized and escaped upon rendering to eliminate XSS and CSV/formula injection.
+- **Credential & Secret Protection**: All database credentials, APP_KEY, mail credentials, and third-party tokens MUST be managed strictly through `.env` locally and Heroku Config Vars in staging/production. Hardcoding credentials in source code or committing `.env` to Git is strictly forbidden.
+- **Tamper-Evident Audit Logging**: Every state modification (`draft_created`, `submitted`, `approved`, `rejected`, `signature_attached`, `number_reserved`) MUST write an immutable record to the `approval_logs` / `audit_logs` table containing timestamp, actor ID/email, target letter ID, and transition metadata.
+- **Rationale**: Safeguards personal employee data and provides legally defensible, non-repudiable auditability.
 
 ### VI. Professional UI Integrity & Global Emoji/Emote Prohibition
-All user-facing interfaces (UI) MUST maintain a formal, clean, and institutional aesthetic suitable for official administrative systems.
-- **Strict Prohibition of Emojis and Emotes**: The use of visual emojis, emoticons, or pictographic emote characters (such as 📄, 🔢, 🚀, 😊, etc.) within UI navigation, buttons, titles, modal headers, status badges, or labels is strictly prohibited across the entire application.
-- **Iconography Standard**: If visual aids are necessary, the UI MUST rely exclusively on professional text labels, standard typography, or formal CSS/SVG geometric glyphs without informal decorative pictograms.
-- **Rationale**: Official correspondence and administrative workflows demand a sober, unambiguous, and professional presentation. Decorative emojis degrade credibility, introduce font rendering inconsistencies across operating systems, and conflict with institutional standards.
+All user-facing interfaces built with Blade and Tailwind CSS MUST maintain a formal, clean, and institutional aesthetic suitable for official administrative systems.
+- **Strict Prohibition of Emojis and Emotes**: The use of visual emojis, emoticons, or pictographic emote characters (such as 📄, 🔢, 🚀, 😊, etc.) within UI navigation, buttons, titles, modal headers, status badges, alerts, or labels is strictly prohibited across the entire application.
+- **Iconography Standard**: Visual cues MUST rely exclusively on professional SVG icon sets (e.g., Heroicons, Lucide Icons) implemented as clean Blade components, or standard typography.
+- **Tailwind Aesthetic**: Use a cohesive, sober institutional palette (neutral/slate/indigo), clear visual hierarchy, accessible contrast ratios, and responsive layouts.
+- **Rationale**: Official administrative workflows require dignity, clarity, and cross-platform visual consistency. Decorative emojis undermine professional credibility.
 
-## Technology Stack & Phase-Specific Constraints
+## Technology Stack & Platform Architecture
 
-### Active Implementation (Phase 0)
-- **Frontend Presentation**: Google Apps Script HTML Service delivering a lightweight Web App UI (`/exec`).
-- **Application Logic**: Google Apps Script server-side runtime (`.gs` files).
-- **Data Persistence**: Google Sheets (`SpreadsheetApp`) across sheets: `Users`, `Letters`, `Counters`, and `ApprovalLog`. Complex structures (`approvalFlow`, `contentData`) MUST be serialized as valid JSON strings within single cells.
-- **Document & Asset Storage**: Google Drive (`DriveApp`) and Google Docs (`DocumentApp` / Advanced Drive Service `Files.update` for version updates).
-- **Identity & Session**: `Session.getActiveUser()` matched against the `Users` sheet whitelist. Organizational Google Workspace domain affiliation is NOT mandatory; personal Gmail accounts are permitted if explicitly whitelisted.
-- **Notifications**: Google Apps Script `MailApp` / `GmailApp`.
-- **Runtime Constraints**:
-  - Apps Script 6-minute maximum execution timeout per request.
-  - Document and PDF generation runs synchronously; intermediate status `Processing PDF` MUST NOT be used during Phase 0.
-  - Operations MUST respect daily Google Workspace API and email quota ceilings.
+### Framework & Language Runtime
+- **Backend Framework**: Laravel 11.x on PHP 8.2+.
+- **Frontend / Templating**: Laravel Blade Templates with Tailwind CSS, bundled and compiled via Vite (`npm run build`).
 
-### Future Architecture Roadmap (Phase 1+)
-- **Phase 1 (Serverless MVP)**: Migration to Firebase (Firestore database, Firebase Authentication, Cloud Functions, and Firebase Hosting).
-- **Phase 2–3 (Enterprise Architecture)**: Transition persistence to GCP Cloud SQL (PostgreSQL) with Prisma/Drizzle ORM, standalone API backend, and modern frontend in Next.js (App Router, SSR) with Firebase Custom Claims for token-level RBAC.
-- **Phase 4 (Scale & Integrations)**: GCP Cloud Tasks for asynchronous background queues and external WhatsApp Gateway notification delivery.
+### Database Engine: PostgreSQL (Heroku Postgres)
+- **Primary Database**: PostgreSQL (via Heroku Postgres add-on).
+- **Driver**: Laravel `pgsql` driver configured through `DATABASE_URL`.
+- **Architectural Rationale over MySQL**:
+  - **Native Heroku Integration**: Heroku Postgres is a first-class, fully managed service on Heroku, natively integrated via the `DATABASE_URL` environment variable and Heroku CLI toolchain (`heroku pg:psql`, `heroku pg:backups`).
+  - **Student Pack Compatibility**: GitHub Student Developer Pack provides Heroku credits applicable directly to Heroku Dynos and Heroku Postgres (Eco/Basic tiers).
+  - **Robust Transactional Locking**: PostgreSQL provides reliable row-level pessimistic locking (`FOR UPDATE`) and sequence handling, vital for atomic document numbering.
+  - **MySQL Drawbacks on Heroku**: Using MySQL on Heroku requires third-party add-ons (ClearDB or JawsDB), which suffer from severe connection limits (typically 5–10 concurrent connections on low/free tiers), small storage caps (5MB–10MB), and lack of direct Heroku CLI backup/restore integration.
+
+### Deployment & Hosting Platform: Heroku
+- **Web Server Runtime**: Heroku PHP Buildpack configured with Apache/Nginx via root `Procfile`:
+  ```text
+  web: vendor/bin/heroku-php-apache2 public/
+  ```
+- **Asset Compilation**: Multi-buildpack deployment order:
+  1. `heroku/nodejs` (installs npm dependencies and compiles frontend via `npm run build`).
+  2. `heroku/php` (installs composer dependencies and boots the Laravel application).
+- **Environment Configuration**: Managed entirely through Heroku Config Vars (`APP_ENV=production`, `APP_KEY`, `DATABASE_URL`, `APP_DEBUG=false`).
+- **Release Phase Automation**: Automated schema migration on deploy defined in `Procfile`:
+  ```text
+  release: php artisan migrate --force
+  ```
+- **File & Document Storage**: Cloud storage (AWS S3 or compatible object storage via Laravel Flysystem) for uploaded scans and generated PDF archives. Heroku's ephemeral filesystem MUST NOT be used for persistent document storage.
+- **Queue & Background Jobs**: Asynchronous processing (queue driver) for PDF generation and email notifications to adhere to Heroku's 30-second HTTP request timeout.
 
 ## Development Workflow, Release & Quality Gates
 
-### Code Conventions & Scope Safety
-- **File Organization**: Apps Script flat directory structure with layer suffixes (e.g., `auth.controller.gs`, `letter.service.gs`, `user.repository.gs`).
-- **Naming Standards**: PascalCase for data models/types, camelCase for functions and variables, UPPER_SNAKE_CASE for constants and enums.
-- **Global Scope Protection**: Because all `.gs` files share a single global scope, files MUST NOT include top-level statements with side-effects (e.g., executing `SpreadsheetApp` during file evaluation). Layers MUST be encapsulated inside module objects (e.g., `const letterService = { ... }`).
-- **JSDoc Requirement**: Every function invoked across files MUST include standard JSDoc annotations detailing purpose, `@param`, and `@return`.
+### Code Conventions & Standards
+- **Coding Style**: Adherence to PSR-12 and Laravel coding standards, verified using Laravel Pint (`./vendor/bin/pint --test`).
+- **Directory Structure**: Standard Laravel convention (`app/Http/Controllers`, `app/Http/Requests`, `app/Services`, `app/Models`, `database/migrations`, `resources/views`).
+- **Schema Management**: All database changes MUST be executed via version-controlled Laravel migrations (`database/migrations/`). Manual database modifications in production are strictly forbidden.
 
 ### Commit Conventions & Versioning
-- **Commit Format**: Conventional Commits v1.0.0 (`feat:`, `fix:`, `refactor:`, `style:`, `docs:`, `chore:`) with imperative lowercase descriptions, no trailing period, and an explicit version footer:
+- **Commit Format**: Conventional Commits v1.0.0 (`feat:`, `fix:`, `refactor:`, `style:`, `docs:`, `test:`, `chore:`) with imperative lowercase descriptions and version metadata footer:
   ```text
-  feat(letter): add atomic sequential numbering lock
+  feat(numbering): implement atomic sequence numbering with postgres lock
 
-  Version: v0.2.0
+  Version: v2.0.0
   ```
-- **Semantic Versioning**: The project follows SemVer 2.0.0 starting at `v0.1.0`. The single source of truth for the codebase version is the root `VERSION` file. Any commit that increments version MUST update `VERSION` within the same commit.
-- **Deployment Workflow**: Code updates are managed and pushed via `clasp` (`clasp push`, `clasp deploy`).
+- **Semantic Versioning**: The project follows SemVer 2.0.0. The single source of truth for the codebase version is the root `VERSION` file. Any commit that increments version MUST update `VERSION` within the same commit.
 
 ### Quality Gates
-Before any release or production deployment:
-1. All critical unit test suites in `*.test.gs` MUST execute and pass without error.
-2. The manual UAT smoke test checklist (covering digital finalization, wet signature upload, rejection flow, and whitelist rejection) MUST be validated.
-3. The root `VERSION` file MUST align with the release tag and commit footer.
+Before any release or production deployment to Heroku:
+1. Automated unit and feature test suites (`php artisan test`) MUST pass with 100% success.
+2. Code style checks via Laravel Pint MUST pass without warnings.
+3. Database migrations MUST be tested locally and verified to be non-destructive or accompanied by rollback routines.
+4. Release phase migration in Heroku MUST execute cleanly before dynos receive web traffic.
 
 ## Governance
 
 ### Constitutional Primacy
-This Constitution constitutes the supreme engineering authority for Sistem Manajemen Surat Menyurat. It supersedes all informal team habits, uncommitted discussions, and conflicting project artifacts. Any conflict between existing implementation and this Constitution MUST be resolved in favor of this Constitution.
+This Constitution constitutes the supreme engineering authority for Koneksi (Kelola Naskah Elektronik dan Komunikasi Internal). It supersedes all informal discussions, temporary conventions, and conflicting project artifacts. Any conflict between existing implementation and this Constitution MUST be resolved in favor of this Constitution.
 
 ### Amendment Procedure
 - Proposed amendments to principles or governance rules MUST be submitted as formal pull requests or Spec Kit workflow updates.
-- Any amendment modifying, expanding, or removing principles requires documented architectural justification, an analysis of backward compatibility, and an implementation plan for migrating existing code.
+- Any amendment modifying, expanding, or removing principles requires documented architectural justification, an analysis of backward compatibility, and an implementation plan.
 - Temporary exceptions or informal deviations are strictly prohibited; changes MUST be formally codified into this Constitution.
 
 ### Semantic Versioning of Constitution
 The Constitution itself is versioned according to Semantic Versioning principles:
-- **MAJOR** increment: Removal, redefinition, or backward-incompatible restructuring of core principles or governance policies.
-- **MINOR** increment: Addition of new principles, material expansion of technical guidelines, or formal ratification of new architectural phases (e.g., Phase 1 transition).
+- **MAJOR** increment: Removal, redefinition, or backward-incompatible restructuring of core principles or governance policies (e.g., transition from Google Apps Script to Laravel + PostgreSQL).
+- **MINOR** increment: Addition of new principles, material expansion of technical guidelines, or formal ratification of new sub-systems.
 - **PATCH** increment: Editorial refinements, typo fixes, non-semantic wording clarifications.
 
 ### Compliance Review & Enforcement
 - All engineering activities—including feature specifications (`/speckit-specify`), architectural plans (`/speckit-plan`), and task implementations (`/speckit-implement`)—MUST actively verify conformance with this Constitution.
-- Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces formula injection vulnerabilities, or omits mandatory critical unit tests.
+- Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces raw SQL or XSS vectors, uses unmigrated DB changes, or violates the emoji prohibition.
 
-**Version**: 1.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
+**Version**: 2.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
