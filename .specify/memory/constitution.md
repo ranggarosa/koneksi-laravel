@@ -1,17 +1,16 @@
 <!--
 Sync Impact Report:
-- Version change: 1.1.0 → 2.0.0
+- Version change: 2.0.0 → 2.1.0
 - List of modified principles:
-  - Modified I. Strict Layered Architecture & Unidirectional Data Flow (redefined from Google Apps Script to Laravel MVC, FormRequests, Services/Actions, and Eloquent Models)
-  - Modified II. Server-Side Single Source of Truth & Zero Trust Authorization (updated to Laravel Auth, Gates, Policies, and DB-level transactional validation)
-  - Modified III. Document Integrity & Atomic Sequence Numbering (updated concurrency protection to PostgreSQL transactions and pessimistic locking lockForUpdate)
-  - Modified IV. Test-Driven Verification of Critical Business Rules (updated to PHPUnit / Pest automated test suites)
-  - Modified V. Defensive Security, Modern Web Protection & Tamper-Evident Auditability (expanded with CSRF, mass assignment, parameterized PDO queries, and immutable audit logs)
-  - Maintained VI. Professional UI Integrity & Global Emoji/Emote Prohibition (enforced across Laravel Blade & Tailwind CSS)
+  - Modified III. Document Integrity, Atomic Sequence Numbering & Legal Immutability (added strict prohibition against hard deleting letters, numbers, or approval workflows)
+  - Added VII. Ephemeral Storage Isolation & Remote Object Storage Integrity (mandated cloud object storage for uploads and PDFs, prohibiting local dyno storage)
+  - Added VIII. Asynchronous Workload Queueing & Heroku 30-Second Timeout Protection (mandated ShouldQueue for PDF generation and email dispatches)
+  - Added IX. Environment Parity & Dev/Prod Mirroring (mandated containerized PostgreSQL via Laravel Sail for local development)
 - Added sections:
-  - Technology Stack & Platform Architecture: Codified Laravel 11.x, Blade + Tailwind CSS, PostgreSQL (Heroku Postgres), and Heroku multi-buildpack deployment
-- Removed sections:
-  - Deprecated Phase 0 (Google Apps Script runtime, Sheets, and DriveApp) in favor of the active Laravel platform
+  - Cloud Object Storage Evaluation & Selection (Cloudflare R2 as primary recommended, Supabase Storage, and AWS S3)
+  - Local Development Environment Specification for macOS Sequoia on x86_64 ThinkPad T480 (Docker + OrbStack/Colima with Laravel Sail)
+  - Zero-Downtime Release Phase & Migration Safety Rules
+- Removed sections: None
 - Follow-up TODOs: None
 -->
 
@@ -35,15 +34,16 @@ All security boundaries, role permissions, and workflow states MUST be validated
 - **Terminal Rejection**: If any reviewer or approver rejects a letter, the workflow MUST terminate immediately, permanently mark the status as `Rejected`, capture mandatory revision notes, and prevent subsequent approvers from taking action.
 - **Rationale**: Prevents privilege escalation, unauthorized workflow bypassing, and guarantees regulatory compliance across administrative correspondence.
 
-### III. Document Integrity & Atomic Sequence Numbering (Race Condition Immunity)
-Official documents represent institutional commitments and MUST maintain rigorous data consistency, deterministic numbering, and verifiable signature integrity.
+### III. Document Integrity, Atomic Sequence Numbering & Legal Immutability
+Official documents represent institutional commitments and MUST maintain rigorous data consistency, deterministic numbering, verifiable signature integrity, and permanent legal auditability.
 - **Deterministic Schema**: Letter numbers MUST follow the canonical format: `{sequence:04d}.{templateCode}/{bulanRomawi}/{tahun}`.
 - **Atomic Concurrency Protection**: Generation of letter numbers MUST be protected against race conditions using PostgreSQL database transactions (`DB::transaction`) and pessimistic row locking (`lockForUpdate`) on the `counters` table. Duplicate letter numbers are strictly prohibited under any concurrency level.
 - **Date Partitioning**: Sequence counters MUST automatically partition and reset upon month and year boundary transitions.
+- **Strict Prohibition of Hard Deletes**: Official letters, issued sequence numbers, and approval logs MUST NEVER be hard-deleted (`DELETE FROM ...`) from the database. Any cancellation, revocation, or withdrawal MUST be executed via explicit status transitions (`status = 'voided'` or `status = 'cancelled'`) accompanied by mandatory justification notes. If soft deletes (`SoftDeletes`) are utilized for pre-submission drafts, access to purge records permanently MUST be restricted exclusively to root database audit routines. No gaps in issued sequence numbers may ever occur due to data deletion.
 - **Dual Signature Finalization Paths**: The final approver MUST explicitly choose between:
   1. **Digital Signature**: Injects authorized digital signature metadata/imagery, compiles the final PDF, and transitions status directly to `Approved`.
   2. **Wet Signature**: Prepares the printable draft document, retains status with `awaiting_wet_signature = true`, and MUST NOT transition to `Approved` until a scanned, physically signed document upload is verified.
-- **Rationale**: Letter numbers are legally binding identifiers. Number collisions or premature approval of unsigned wet-signature documents compromises legal validity.
+- **Rationale**: Letter numbers and official correspondence carry legal accountability. Deleting records or allowing sequence collisions compromises institutional compliance and forensic auditability.
 
 ### IV. Test-Driven Verification of Critical Business Rules
 Critical business rules and core lifecycle workflows MUST be verified through structured, automated test suites (PHPUnit or Pest) before code reaches production.
@@ -54,14 +54,15 @@ Critical business rules and core lifecycle workflows MUST be verified through st
   3. Signature branching behavior: instant completion for digital vs upload verification gate for wet signature.
   4. Authentication guards, role-based policies, and inactive user lockout.
   5. Immutable audit log recording on every state transition.
+  6. Queue job dispatching for asynchronous PDF generation and mail delivery.
 - **Rationale**: Prevents regressions in high-stakes numbering, legal, and authorization logic during continuous deployment to Heroku.
 
 ### V. Defensive Security, Modern Web Protection & Comprehensive Auditability
 All components MUST implement defensive programming to safeguard sensitive personnel information and maintain tamper-evident audit trails.
 - **Modern Web Security**: All form submissions and state-mutating requests MUST include valid CSRF tokens (`VerifyCsrfToken`). All database interactions MUST use Eloquent or PDO parameterized queries to eliminate SQL injection vectors. Mass assignment MUST be prevented using explicit `$fillable` model definitions.
 - **Sanitization & Escaping**: All user-provided strings (employee names, NIK, form content, revision notes) MUST be sanitized and escaped upon rendering to eliminate XSS and CSV/formula injection.
-- **Credential & Secret Protection**: All database credentials, APP_KEY, mail credentials, and third-party tokens MUST be managed strictly through `.env` locally and Heroku Config Vars in staging/production. Hardcoding credentials in source code or committing `.env` to Git is strictly forbidden.
-- **Tamper-Evident Audit Logging**: Every state modification (`draft_created`, `submitted`, `approved`, `rejected`, `signature_attached`, `number_reserved`) MUST write an immutable record to the `approval_logs` / `audit_logs` table containing timestamp, actor ID/email, target letter ID, and transition metadata.
+- **Credential & Secret Protection**: All database credentials, APP_KEY, mail credentials, object storage keys, and third-party tokens MUST be managed strictly through `.env` locally and Heroku Config Vars in staging/production. Hardcoding credentials in source code or committing `.env` to Git is strictly forbidden.
+- **Tamper-Evident Audit Logging**: Every state modification (`draft_created`, `submitted`, `approved`, `rejected`, `signature_attached`, `number_reserved`, `voided`) MUST write an immutable record to the `approval_logs` / `audit_logs` table containing timestamp, actor ID/email, target letter ID, and transition metadata.
 - **Rationale**: Safeguards personal employee data and provides legally defensible, non-repudiable auditability.
 
 ### VI. Professional UI Integrity & Global Emoji/Emote Prohibition
@@ -70,6 +71,26 @@ All user-facing interfaces built with Blade and Tailwind CSS MUST maintain a for
 - **Iconography Standard**: Visual cues MUST rely exclusively on professional SVG icon sets (e.g., Heroicons, Lucide Icons) implemented as clean Blade components, or standard typography.
 - **Tailwind Aesthetic**: Use a cohesive, sober institutional palette (neutral/slate/indigo), clear visual hierarchy, accessible contrast ratios, and responsive layouts.
 - **Rationale**: Official administrative workflows require dignity, clarity, and cross-platform visual consistency. Decorative emojis undermine professional credibility.
+
+### VII. Ephemeral Storage Isolation & Remote Object Storage Integrity
+Heroku dyno filesystems are strictly ephemeral; files stored on local dyno disks are erased upon restart or redeployment.
+- **Prohibition of Local File Persistence**: User-uploaded documents (e.g., wet signature scans, attachments) and generated artifacts (e.g., final official PDF documents) **MUST NEVER** be stored on the local dyno disk (`storage/app/public` or `/tmp`).
+- **Remote Cloud Object Storage**: All persistent files MUST be stored directly in an S3-compatible Cloud Object Storage bucket via Laravel Flysystem (`Storage::disk('s3')`).
+- **Access Control & Presigned URLs**: Buckets containing official letters and signature scans MUST remain private (no public read permissions). Access to view or download files MUST be granted exclusively via short-lived, authenticated presigned URLs generated server-side.
+- **Rationale**: Prevents critical document loss caused by Heroku dyno restarts and protects confidential organizational letters from unauthorized exposure.
+
+### VIII. Asynchronous Workload Queueing & Heroku 30-Second Timeout Protection
+Heroku HTTP routers enforce a strict 30-second ceiling on request duration, terminating slow requests with `H12 - Request Timeout`.
+- **Mandatory Job Queueing**: High-latency tasks—specifically multi-page PDF generation, image transformation of signature scans, and external email notification dispatch—**MUST NOT** execute synchronously within web request lifecycles.
+- **Asynchronous Execution Pattern**: Controllers MUST dispatch these tasks to background queues (`ShouldQueue` / Laravel Jobs) and immediately return responsive feedback to the client.
+- **Queue Worker Configuration**: A dedicated worker dyno or database/Redis queue worker MUST process these asynchronous tasks without blocking web dynos.
+- **Rationale**: Protects web dynos from saturation and eliminates HTTP 504/H12 timeout errors during peak document approval and distribution periods.
+
+### IX. Environment Parity & Dev/Prod Mirroring
+Following Twelve-Factor App principles, local development environments MUST maintain strict parity with production to prevent deployment-time failures.
+- **Database Engine Parity**: Developers MUST run PostgreSQL locally for development and testing. Using SQLite or MySQL locally while targeting Heroku Postgres in production is strictly forbidden due to divergent locking behaviors, migration differences, and JSON operators.
+- **Containerized Parity Standard**: Local services (PHP, PostgreSQL, Redis) MUST be managed via containerization (Laravel Sail / Docker) to replicate the production 64-bit Linux runtime environment.
+- **Rationale**: Guarantees that concurrency locks (`lockForUpdate`), database migrations, and PHP extensions perform identically in local development and on Heroku dynos.
 
 ## Technology Stack & Platform Architecture
 
@@ -80,27 +101,45 @@ All user-facing interfaces built with Blade and Tailwind CSS MUST maintain a for
 ### Database Engine: PostgreSQL (Heroku Postgres)
 - **Primary Database**: PostgreSQL (via Heroku Postgres add-on).
 - **Driver**: Laravel `pgsql` driver configured through `DATABASE_URL`.
-- **Architectural Rationale over MySQL**:
-  - **Native Heroku Integration**: Heroku Postgres is a first-class, fully managed service on Heroku, natively integrated via the `DATABASE_URL` environment variable and Heroku CLI toolchain (`heroku pg:psql`, `heroku pg:backups`).
-  - **Student Pack Compatibility**: GitHub Student Developer Pack provides Heroku credits applicable directly to Heroku Dynos and Heroku Postgres (Eco/Basic tiers).
-  - **Robust Transactional Locking**: PostgreSQL provides reliable row-level pessimistic locking (`FOR UPDATE`) and sequence handling, vital for atomic document numbering.
-  - **MySQL Drawbacks on Heroku**: Using MySQL on Heroku requires third-party add-ons (ClearDB or JawsDB), which suffer from severe connection limits (typically 5–10 concurrent connections on low/free tiers), small storage caps (5MB–10MB), and lack of direct Heroku CLI backup/restore integration.
+- **Architectural Rationale**: Native first-class Heroku integration, student pack credit compatibility, native row-level pessimistic locking (`FOR UPDATE`), and robust automated CLI snapshots (`heroku pg:backups`).
+
+### Cloud Object Storage: Evaluation & Selection
+Given Heroku's ephemeral filesystem, persistent storage MUST be delegated to an S3-compatible cloud object storage provider.
+
+1. **Option A: Cloudflare R2 (Primary Recommended)**
+   - **Cost Efficiency**: **$0 Egress Fees** (unlimited free bandwidth). Free tier includes 10 GB storage/month, 1,000,000 Class A operations/month, and 10,000,000 Class B operations/month. Incurs $0 cost for typical administrative letter workloads.
+   - **Security**: Fully private buckets, S3-compatible API credentials with granular scoped API tokens, TLS 1.3 in transit, and automatic AES-256 encryption at rest. Integrates seamlessly with Laravel via `league/flysystem-aws-s3-v3`.
+2. **Option B: Supabase Storage (Alternative)**
+   - **Cost Efficiency**: Included in free tier (1 GB storage, 2 GB egress bandwidth).
+   - **Security**: Integrated PostgreSQL Row-Level Security (RLS) policies, S3-compatible API endpoint, and private bucket access.
+3. **Option C: AWS S3 (Enterprise Standard)**
+   - **Cost Efficiency**: Standard AWS pricing; free tier covers 5 GB for the first 12 months, but charges apply for outbound data egress ($0.09/GB) thereafter.
+   - **Security**: Industry-standard IAM policies, KMS customer-managed key encryption, and audit trail via AWS CloudTrail.
+- **Architecture Decision**: **Cloudflare R2** is adopted as the primary storage provider for maximal cost efficiency and zero egress costs.
 
 ### Deployment & Hosting Platform: Heroku
 - **Web Server Runtime**: Heroku PHP Buildpack configured with Apache/Nginx via root `Procfile`:
   ```text
   web: vendor/bin/heroku-php-apache2 public/
+  worker: php artisan queue:work --tries=3 --timeout=90
   ```
 - **Asset Compilation**: Multi-buildpack deployment order:
   1. `heroku/nodejs` (installs npm dependencies and compiles frontend via `npm run build`).
   2. `heroku/php` (installs composer dependencies and boots the Laravel application).
-- **Environment Configuration**: Managed entirely through Heroku Config Vars (`APP_ENV=production`, `APP_KEY`, `DATABASE_URL`, `APP_DEBUG=false`).
-- **Release Phase Automation**: Automated schema migration on deploy defined in `Procfile`:
-  ```text
-  release: php artisan migrate --force
-  ```
-- **File & Document Storage**: Cloud storage (AWS S3 or compatible object storage via Laravel Flysystem) for uploaded scans and generated PDF archives. Heroku's ephemeral filesystem MUST NOT be used for persistent document storage.
-- **Queue & Background Jobs**: Asynchronous processing (queue driver) for PDF generation and email notifications to adhere to Heroku's 30-second HTTP request timeout.
+- **Environment Configuration**: Managed entirely through Heroku Config Vars (`APP_ENV=production`, `APP_KEY`, `DATABASE_URL`, `APP_DEBUG=false`, storage credentials).
+- **Release Phase Automation & Zero-Downtime Migration Safety**:
+  - Automated schema migration defined in `Procfile`:
+    ```text
+    release: php artisan migrate --force
+    ```
+  - **Migration Safety Rules**: All migrations MUST be non-destructive (expand-and-contract pattern). Dropping columns or renaming tables actively read by running dynos is strictly prohibited until a subsequent deployment phase. `php artisan db:seed` is strictly forbidden in production release commands.
+
+### Local Development Environment: macOS Sequoia on ThinkPad T480 (x86_64)
+To ensure seamless deployment to Heroku from a macOS Sequoia system running on Lenovo ThinkPad T480 (Intel Core 8th Gen x86_64):
+- **Recommended Setup**: **Laravel Sail** powered by **OrbStack** (or **Colima** / **Docker Desktop**).
+  - *Architecture Advantage*: Because the ThinkPad T480 is native Intel x86_64, Linux containers run without Rosetta or QEMU translation overhead, matching Heroku's 64-bit Linux architecture 1:1.
+  - *Resource Efficiency*: OrbStack or Colima provides significantly lower CPU and battery consumption on ThinkPad T480 compared to legacy virtual machines.
+  - *Services Provided*: Pre-configured containers for PHP 8.2+, PostgreSQL 16 (mirroring Heroku Postgres), and Redis.
 
 ## Development Workflow, Release & Quality Gates
 
@@ -112,9 +151,9 @@ All user-facing interfaces built with Blade and Tailwind CSS MUST maintain a for
 ### Commit Conventions & Versioning
 - **Commit Format**: Conventional Commits v1.0.0 (`feat:`, `fix:`, `refactor:`, `style:`, `docs:`, `test:`, `chore:`) with imperative lowercase descriptions and version metadata footer:
   ```text
-  feat(numbering): implement atomic sequence numbering with postgres lock
+  feat(storage): configure cloudflare r2 private bucket with presigned urls
 
-  Version: v2.0.0
+  Version: v2.1.0
   ```
 - **Semantic Versioning**: The project follows SemVer 2.0.0. The single source of truth for the codebase version is the root `VERSION` file. Any commit that increments version MUST update `VERSION` within the same commit.
 
@@ -124,6 +163,7 @@ Before any release or production deployment to Heroku:
 2. Code style checks via Laravel Pint MUST pass without warnings.
 3. Database migrations MUST be tested locally and verified to be non-destructive or accompanied by rollback routines.
 4. Release phase migration in Heroku MUST execute cleanly before dynos receive web traffic.
+5. All file operations MUST be verified to target remote object storage, leaving no lingering local artifacts.
 
 ## Governance
 
@@ -137,12 +177,12 @@ This Constitution constitutes the supreme engineering authority for Koneksi (Kel
 
 ### Semantic Versioning of Constitution
 The Constitution itself is versioned according to Semantic Versioning principles:
-- **MAJOR** increment: Removal, redefinition, or backward-incompatible restructuring of core principles or governance policies (e.g., transition from Google Apps Script to Laravel + PostgreSQL).
+- **MAJOR** increment: Removal, redefinition, or backward-incompatible restructuring of core principles or governance policies.
 - **MINOR** increment: Addition of new principles, material expansion of technical guidelines, or formal ratification of new sub-systems.
 - **PATCH** increment: Editorial refinements, typo fixes, non-semantic wording clarifications.
 
 ### Compliance Review & Enforcement
 - All engineering activities—including feature specifications (`/speckit-specify`), architectural plans (`/speckit-plan`), and task implementations (`/speckit-implement`)—MUST actively verify conformance with this Constitution.
-- Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces raw SQL or XSS vectors, uses unmigrated DB changes, or violates the emoji prohibition.
+- Pull requests and code reviews MUST reject code that violates the layered architecture, bypasses server authorization, introduces raw SQL or XSS vectors, uses unmigrated DB changes, relies on ephemeral dyno storage, or violates the emoji prohibition.
 
-**Version**: 2.0.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
+**Version**: 2.1.0 | **Ratified**: 2026-09-24 | **Last Amended**: 2026-10-04
